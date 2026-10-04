@@ -1,0 +1,15 @@
+{
+  "name": "gentle-shell-minimax-usage",
+  "version": "0.0.1",
+  "private": true,
+  "description": "MiniMax Token Plan quota (5h and weekly) as a native Gentle Shell usage source for Pi.",
+  "type": "module",
+  "keywords": ["pi-package", "gentle-shell", "minimax", "usage"],
+  "files": ["extensions/", "lib/", "README.md"],
+  "scripts": {
+    "test": "node --experimental-strip-types --test tests/*.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "pi": { "extensions": ["./extensions"] },
+  "devDependencies": { "@types/node": "^24.13.3", "typescript": "^5.9.3" }
+}
