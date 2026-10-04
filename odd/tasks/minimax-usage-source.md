@@ -64,7 +64,7 @@ Forecast about 450 authored changed lines, mostly tests.
 - [x] T1 Parser `lib/parse-remains.ts` + `tests/parse-remains.test.ts` + fixtures (test-first). Route: delegated writer (writer trigger: 2+ non-trivial files).
 - [x] T2 Fetcher `lib/fetch-remains.ts` + `tests/fetch-remains.test.ts` (test-first). Route: delegated writer.
 - [x] T3 Extension `extensions/minimax-usage-source.ts` + test, `package.json` (v0.0.1), `tsconfig.json`, `README.md`. Route: delegated writer.
-- [ ] T4 Copy to `~/.pi/agent/extensions/minimax-usage/` after all checks pass. Route: inline (mechanical copy).
+- [x] T4 Copy to `~/.pi/agent/extensions/minimax-usage/` after all checks pass. Route: inline (mechanical copy).
 
 ## Applicable checks
 
@@ -78,6 +78,17 @@ Forecast about 450 authored changed lines, mostly tests.
 - T2 done: RED `ERR_MODULE_NOT_FOUND lib/fetch-remains.ts` (8 pass / 1 fail); GREEN 15 pass / 0 fail.
 - T3 done: RED `ERR_MODULE_NOT_FOUND extensions/minimax-usage-source.ts` (15 pass / 1 fail); GREEN `npm test` 19 pass / 0 fail, `npm run typecheck` exit 0 (tsc 5.9.3, `erasableSyntaxOnly` kept).
 
+- Commits: T1 `52a2d2f`, T2 `c8d715c`, T3 `e5db7cc`. Parent spot check: `npm test` 19/19, `npm run typecheck` exit 0.
+- Native review: assess vs empty-tree base -> medium (`slice_budget_reached`); user granted; one reliability lens -> approved, acknowledged (lineage `review-ca0f7b03df12ddcb`).
+- T4 done: copied `package.json`, `README.md`, `extensions/`, `lib/` to `~/.pi/agent/extensions/minimax-usage/` (v0.0.1). Smoke import of the copy registered on `session_start` with the exact channel, schema and provider.
+- Pending: manual acceptance in Pi (Alt+U with a `minimax/*` model active).
+
+## Follow-ups (non-blocking review findings)
+
+- R3-001 (warning): no test for a thrown primary request falling back to a healthy legacy reply (`tests/fetch-remains.test.ts:94-100`).
+- R3-002 (suggestion): no test for both windows invalid -> `undefined`, nor weekly-only `limitReached`.
+- R3-003 (suggestion): non-ok responses are not body-cancelled before returning (`lib/fetch-remains.ts:43`).
+
 ## Next step
 
-T4.
+Manual acceptance in Pi, then decide on the follow-ups.
