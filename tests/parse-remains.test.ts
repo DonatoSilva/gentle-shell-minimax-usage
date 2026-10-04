@@ -28,10 +28,12 @@ test("maps the real /remains payload to a ProviderUsage snapshot", () => {
       {
         name: "general",
         limitReached: false,
-        windows: [
-          { label: "5h", usedPercent: 55, windowSeconds: 18000, resetAt: NOW + 5100631 },
-          { label: "week", usedPercent: 6, windowSeconds: 604800, resetAt: NOW + 591900631 },
-        ],
+        windows: [{ label: "5h", usedPercent: 55, windowSeconds: 18000, resetAt: NOW + 5100631 }],
+      },
+      {
+        name: "general",
+        limitReached: false,
+        windows: [{ label: "week", usedPercent: 6, windowSeconds: 604800, resetAt: NOW + 591900631 }],
       },
     ],
     fetchedAt: NOW,
@@ -60,9 +62,20 @@ test("keeps only the 5h window when weekly fields are missing", () => {
 
   const usage = parseRemains(bodyWith(bucket), NOW);
 
-  assert.deepStrictEqual(usage?.limits[0]?.windows, [
-    { label: "5h", usedPercent: 55, windowSeconds: 18000, resetAt: NOW + 5100631 },
+  assert.deepStrictEqual(usage?.limits, [
+    {
+      name: "general",
+      limitReached: false,
+      windows: [{ label: "5h", usedPercent: 55, windowSeconds: 18000, resetAt: NOW + 5100631 }],
+    },
   ]);
+});
+
+test("marks only the exhausted window's limit as reached", () => {
+  const usage = parseRemains(bodyWith({ ...okBucket(), current_weekly_remaining_percent: 0 }), NOW);
+
+  assert.equal(usage?.limits[0]?.limitReached, false);
+  assert.equal(usage?.limits[1]?.limitReached, true);
 });
 
 test("marks the limit reached when nothing remains", () => {

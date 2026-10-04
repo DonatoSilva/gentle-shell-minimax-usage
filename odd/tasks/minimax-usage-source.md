@@ -30,7 +30,7 @@ no gentle-pi edits.
 - No imports from gentle-pi; literal channel and schema strings.
 - No credential handling: the shell resolves the key via `getApiKeyForProvider`.
 - Register only from `session_start` (Pi's event bus has no replay).
-- One limit holding both windows (the footer bar draws a single limit).
+- One limit per window, 5h first (v0.0.2): the footer bar draws only the first limit, Alt+U lists all of them.
 - Tests run with `node --experimental-strip-types --test tests/*.test.ts` (Node 24).
 
 ## Verified contract (gentle-pi 3.7.0, Pi 1.0.0)
@@ -65,6 +65,7 @@ Forecast about 450 authored changed lines, mostly tests.
 - [x] T2 Fetcher `lib/fetch-remains.ts` + `tests/fetch-remains.test.ts` (test-first). Route: delegated writer.
 - [x] T3 Extension `extensions/minimax-usage-source.ts` + test, `package.json` (v0.0.1), `tsconfig.json`, `README.md`. Route: delegated writer.
 - [x] T4 Copy to `~/.pi/agent/extensions/minimax-usage/` after all checks pass. Route: inline (mechanical copy).
+- [ ] T5 v0.0.2: footer shows only 5h; split windows into one limit each, keep both in Alt+U. Route: inline (one parser file + its test).
 
 ## Applicable checks
 
@@ -81,7 +82,8 @@ Forecast about 450 authored changed lines, mostly tests.
 - Commits: T1 `52a2d2f`, T2 `c8d715c`, T3 `e5db7cc`. Parent spot check: `npm test` 19/19, `npm run typecheck` exit 0.
 - Native review: assess vs empty-tree base -> medium (`slice_budget_reached`); user granted; one reliability lens -> approved, acknowledged (lineage `review-ca0f7b03df12ddcb`).
 - T4 done: copied `package.json`, `README.md`, `extensions/`, `lib/` to `~/.pi/agent/extensions/minimax-usage/` (v0.0.1). Smoke import of the copy registered on `session_start` with the exact channel, schema and provider.
-- Pending: manual acceptance in Pi (Alt+U with a `minimax/*` model active).
+- Manual acceptance in Pi: works; user asked for a 5h-only footer (T5).
+- T5: RED 18 pass / 2 fail (snapshot shape, weekly-only `limitReached`); GREEN `npm test` 20 pass / 0 fail, `npm run typecheck` exit 0. Covers R3-002 weekly-only `limitReached`.
 
 ## Follow-ups (non-blocking review findings)
 
@@ -91,4 +93,4 @@ Forecast about 450 authored changed lines, mostly tests.
 
 ## Next step
 
-Manual acceptance in Pi, then decide on the follow-ups.
+Reload Pi and confirm the footer shows only 5h; then decide on the follow-ups.

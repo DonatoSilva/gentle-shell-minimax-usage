@@ -6,11 +6,14 @@ only; Gentle Shell draws the meters, thresholds and countdowns.
 
 ## What you get
 
-With a `minimax/*` model active, Alt+U (and the sidebar Usage group and footer
-bar) shows one `general` limit with two windows:
+With a `minimax/*` model active, Alt+U (and the sidebar Usage group) shows two
+`general` rows:
 
 - `5h`: percent used in the current 5-hour window and when it resets.
 - `week`: percent used in the current weekly window and when it resets.
+
+The footer bar shows only the `5h` window: each window is its own limit, and the
+footer draws the first one.
 
 The data comes from `GET https://api.minimax.io/v1/token_plan/remains`, with the
 legacy Coding Plan path as a fallback. Gentle Shell supplies the API key, so

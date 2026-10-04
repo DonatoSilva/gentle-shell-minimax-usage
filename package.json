@@ -1,6 +1,6 @@
 {
   "name": "gentle-shell-minimax-usage",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "private": true,
   "description": "MiniMax Token Plan quota (5h and weekly) as a native Gentle Shell usage source for Pi.",
   "type": "module",

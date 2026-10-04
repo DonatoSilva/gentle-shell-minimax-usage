@@ -42,15 +42,15 @@ export function parseRemains(body: unknown, now: number): ProviderUsage | undefi
 
   if (windows.length === 0) return undefined;
 
+  // One limit per window: the shell's footer draws only the first limit (5h),
+  // while the Alt+U panel lists every limit's windows.
   return {
     provider: PROVIDER,
-    limits: [
-      {
-        name: BUCKET,
-        limitReached: windows.some((w) => w.usedPercent >= 100),
-        windows,
-      },
-    ],
+    limits: windows.map((w) => ({
+      name: BUCKET,
+      limitReached: w.usedPercent >= 100,
+      windows: [w],
+    })),
     fetchedAt: now,
   };
 }
