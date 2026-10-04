@@ -29,7 +29,8 @@ no gentle-pi edits.
 
 - No imports from gentle-pi; literal channel and schema strings.
 - No credential handling: the shell resolves the key via `getApiKeyForProvider`.
-- Register only from `session_start` (Pi's event bus has no replay).
+- Register at factory time and again on every `session_start` (T6): Pi's event bus has no
+  replay, so a source loaded after the event would otherwise never register.
 - One limit per window, 5h first (v0.0.2): the footer bar draws only the first limit, Alt+U lists all of them.
 - Tests run with `node --experimental-strip-types --test tests/*.test.ts` (Node 24).
 
@@ -66,6 +67,7 @@ Forecast about 450 authored changed lines, mostly tests.
 - [x] T3 Extension `extensions/minimax-usage-source.ts` + test, `package.json` (v0.0.1), `tsconfig.json`, `README.md`. Route: delegated writer.
 - [x] T4 Copy to `~/.pi/agent/extensions/minimax-usage/` after all checks pass. Route: inline (mechanical copy).
 - [x] T5 v0.0.2: footer shows only 5h; split windows into one limit each, keep both in Alt+U. Route: inline (one parser file + its test).
+- [x] T6 Register the source at factory time, not only on `session_start`; update the three tests that pinned the old contract. Route: inline (one test file + this doc).
 
 ## Applicable checks
 
@@ -84,6 +86,7 @@ Forecast about 450 authored changed lines, mostly tests.
 - T4 done: copied `package.json`, `README.md`, `extensions/`, `lib/` to `~/.pi/agent/extensions/minimax-usage/` (v0.0.1). Smoke import of the copy registered on `session_start` with the exact channel, schema and provider.
 - Manual acceptance in Pi: works; user asked for a 5h-only footer (T5).
 - T5: RED 18 pass / 2 fail (snapshot shape, weekly-only `limitReached`); GREEN `npm test` 20 pass / 0 fail, `npm run typecheck` exit 0. Covers R3-002 weekly-only `limitReached`. Commits: `aea154b` (pi.extensions entry fix), `1d1d0d0` (T5). Assess: medium, `under_budget` (no review due). Copied v0.0.2 to `~/.pi/agent/extensions/minimax-usage/`; smoke parse of the copy yields limits `[["5h"],["week"]]`.
+- T6: RED 3 fail / 17 pass (`does not emit at factory time`, `session_start` count 2 vs 1, re-register 3 vs 2); GREEN `npm test` 20 pass / 0 fail, `npm run typecheck` exit 0 (verifier: `gentle-ai-verify`). Contract test extracted into `assertRegistration` so factory-time and `session_start` payloads are asserted by the same helper. Version not bumped: the copy still reports 0.0.2.
 
 ## Follow-ups (non-blocking review findings)
 

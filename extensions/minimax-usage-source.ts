@@ -25,5 +25,6 @@ export default function minimaxUsageSource(pi: PiExtensionApi): void {
     });
   };
 
+  register();
   pi.on("session_start", register);
 }

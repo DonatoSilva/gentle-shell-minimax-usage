@@ -33,12 +33,22 @@ function fakePi() {
   return { pi, emitted, fire };
 }
 
-test("does not emit at factory time", () => {
+function assertRegistration(emitted: Emitted): void {
+  assert.equal(emitted.channel, CHANNEL);
+  const { data } = emitted;
+  assert.equal(data.schema, "gentle-pi.usage-source/v1");
+  assert.equal(data.provider, "minimax");
+  assert.equal(data.pendingNote, "no usage yet · r to fetch");
+  assert.equal(typeof data.fetch, "function");
+}
+
+test("registers the usage source at factory time", () => {
   const { pi, emitted } = fakePi();
 
   minimaxUsageSource(pi);
 
-  assert.equal(emitted.length, 0);
+  assert.equal(emitted.length, 1);
+  assertRegistration(emitted[0] as Emitted);
 });
 
 test("registers the usage source on session_start", () => {
@@ -47,13 +57,8 @@ test("registers the usage source on session_start", () => {
 
   fire("session_start");
 
-  assert.equal(emitted.length, 1);
-  const [{ channel, data }] = emitted as [Emitted];
-  assert.equal(channel, CHANNEL);
-  assert.equal(data.schema, "gentle-pi.usage-source/v1");
-  assert.equal(data.provider, "minimax");
-  assert.equal(data.pendingNote, "no usage yet · r to fetch");
-  assert.equal(typeof data.fetch, "function");
+  assert.equal(emitted.length, 2);
+  assertRegistration(emitted.at(-1) as Emitted);
 });
 
 test("the registered fetch returns the parsed snapshot", async () => {
@@ -65,7 +70,7 @@ test("the registered fetch returns the parsed snapshot", async () => {
   minimaxUsageSource(pi);
   fire("session_start");
 
-  const fetch = emitted[0]?.data.fetch as (
+  const fetch = emitted.at(-1)?.data.fetch as (
     apiKey: string | undefined,
     fetchFn: FetchFn,
     now: number,
@@ -81,6 +86,6 @@ test("re-registers on every session_start", () => {
   fire("session_start");
   fire("session_start");
 
-  assert.equal(emitted.length, 2);
+  assert.equal(emitted.length, 3);
   assert.ok(emitted.every((e) => e.channel === CHANNEL));
 });
