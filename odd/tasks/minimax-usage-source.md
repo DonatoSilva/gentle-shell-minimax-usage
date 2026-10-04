@@ -62,7 +62,7 @@ Forecast about 450 authored changed lines, mostly tests.
 ## Tasks
 
 - [x] T1 Parser `lib/parse-remains.ts` + `tests/parse-remains.test.ts` + fixtures (test-first). Route: delegated writer (writer trigger: 2+ non-trivial files).
-- [ ] T2 Fetcher `lib/fetch-remains.ts` + `tests/fetch-remains.test.ts` (test-first). Route: delegated writer.
+- [x] T2 Fetcher `lib/fetch-remains.ts` + `tests/fetch-remains.test.ts` (test-first). Route: delegated writer.
 - [ ] T3 Extension `extensions/minimax-usage-source.ts` + test, `package.json` (v0.0.1), `tsconfig.json`, `README.md`. Route: delegated writer.
 - [ ] T4 Copy to `~/.pi/agent/extensions/minimax-usage/` after all checks pass. Route: inline (mechanical copy).
 
@@ -75,7 +75,8 @@ Forecast about 450 authored changed lines, mostly tests.
 - Contract verification done by read-only explorer (see Verified contract).
 - Branch `feat/minimax-usage-source` created (repo had no commits).
 - T1 done: RED `ERR_MODULE_NOT_FOUND lib/parse-remains.ts`; GREEN `node --experimental-strip-types --test tests/*.test.ts` 8 pass / 0 fail (npm scripts arrive in T3).
+- T2 done: RED `ERR_MODULE_NOT_FOUND lib/fetch-remains.ts` (8 pass / 1 fail); GREEN 15 pass / 0 fail.
 
 ## Next step
 
-T2.
+T3.
