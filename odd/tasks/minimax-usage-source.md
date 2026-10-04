@@ -65,7 +65,7 @@ Forecast about 450 authored changed lines, mostly tests.
 - [x] T2 Fetcher `lib/fetch-remains.ts` + `tests/fetch-remains.test.ts` (test-first). Route: delegated writer.
 - [x] T3 Extension `extensions/minimax-usage-source.ts` + test, `package.json` (v0.0.1), `tsconfig.json`, `README.md`. Route: delegated writer.
 - [x] T4 Copy to `~/.pi/agent/extensions/minimax-usage/` after all checks pass. Route: inline (mechanical copy).
-- [ ] T5 v0.0.2: footer shows only 5h; split windows into one limit each, keep both in Alt+U. Route: inline (one parser file + its test).
+- [x] T5 v0.0.2: footer shows only 5h; split windows into one limit each, keep both in Alt+U. Route: inline (one parser file + its test).
 
 ## Applicable checks
 
@@ -83,7 +83,7 @@ Forecast about 450 authored changed lines, mostly tests.
 - Native review: assess vs empty-tree base -> medium (`slice_budget_reached`); user granted; one reliability lens -> approved, acknowledged (lineage `review-ca0f7b03df12ddcb`).
 - T4 done: copied `package.json`, `README.md`, `extensions/`, `lib/` to `~/.pi/agent/extensions/minimax-usage/` (v0.0.1). Smoke import of the copy registered on `session_start` with the exact channel, schema and provider.
 - Manual acceptance in Pi: works; user asked for a 5h-only footer (T5).
-- T5: RED 18 pass / 2 fail (snapshot shape, weekly-only `limitReached`); GREEN `npm test` 20 pass / 0 fail, `npm run typecheck` exit 0. Covers R3-002 weekly-only `limitReached`.
+- T5: RED 18 pass / 2 fail (snapshot shape, weekly-only `limitReached`); GREEN `npm test` 20 pass / 0 fail, `npm run typecheck` exit 0. Covers R3-002 weekly-only `limitReached`. Commits: `aea154b` (pi.extensions entry fix), `1d1d0d0` (T5). Assess: medium, `under_budget` (no review due). Copied v0.0.2 to `~/.pi/agent/extensions/minimax-usage/`; smoke parse of the copy yields limits `[["5h"],["week"]]`.
 
 ## Follow-ups (non-blocking review findings)
 
