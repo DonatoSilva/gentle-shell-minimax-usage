@@ -63,10 +63,10 @@ The env var is the escape hatch — that is exactly why the switch exists.
 ## Install
 
 ```sh
-pi install npm:gentle-shell-minimax-usage@0.0.3
+pi install npm:gentle-shell-minimax-usage@0.4.0
 ```
 
-Pin the version, or drop the `@0.0.3` to follow the latest release. `pi list`
+Pin the version, or drop the `@0.4.0` to follow the latest release. `pi list`
 shows the configured packages, and `pi update gentle-shell-minimax-usage` moves
 to the next version. Pi keeps the package under its own npm directory, so there
 is no copy step and no path to maintain.
@@ -81,7 +81,7 @@ Build the tarball and unpack it into a Pi extension subdirectory:
 ```sh
 npm pack
 mkdir -p ~/.pi/agent/extensions/minimax-usage
-tar -xzf gentle-shell-minimax-usage-0.0.3.tgz -C ~/.pi/agent/extensions/minimax-usage --strip-components=1
+tar -xzf gentle-shell-minimax-usage-0.4.0.tgz -C ~/.pi/agent/extensions/minimax-usage --strip-components=1
 ```
 
 Pi loads one-level subdirectories of `~/.pi/agent/extensions/` that have a

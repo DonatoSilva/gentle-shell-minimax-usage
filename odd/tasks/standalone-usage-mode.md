@@ -101,6 +101,8 @@ escape hatch, which is exactly why the switch exists.
   stubbed healthy endpoint → `MM 5h 55% · week 6%`; a rejecting fetch → `MM: sin datos`;
   `auto` with a shell detected → no status; `auto` without one → status; `shell` → no status;
   `off` → 0 emissions and no status; `print` → no status.
+- Release: the standalone mode ships as `0.4.0`. The `0.0.3` bump from T4 was never published,
+  and the `0.0.2` copy predates the switch, so nothing published carries a version without it.
 
 ## Pending checks
 
