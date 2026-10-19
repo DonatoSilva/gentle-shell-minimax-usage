@@ -111,7 +111,15 @@ test("the registered fetch returns the parsed snapshot", async () => {
     now: number,
   ) => Promise<unknown>;
 
-  assert.deepStrictEqual(await fetch("key", stubFetch, NOW), parseRemains(JSON.parse(readFileSync(new URL("./fixtures/remains-ok.json", import.meta.url), "utf8")) as unknown, NOW));
+  assert.deepStrictEqual(
+    await fetch("key", stubFetch, NOW),
+    parseRemains(
+      JSON.parse(
+        readFileSync(new URL("./fixtures/remains-ok.json", import.meta.url), "utf8"),
+      ) as unknown,
+      NOW,
+    ),
+  );
 });
 
 test("re-registers on every session_start", () => {
@@ -142,7 +150,9 @@ test("status mode writes the usage status on session_start and agent_settled", a
   await flush();
 
   assert.equal(statusCalls.length, 2);
-  assert.ok(statusCalls.every(([key, text]) => key === STATUS_KEY && text === "MM 5h 55% · week 6%"));
+  assert.ok(
+    statusCalls.every(([key, text]) => key === STATUS_KEY && text === "MM 5h 55% · week 6%"),
+  );
 });
 
 test("off mode emits nothing and writes nothing", async () => {
@@ -195,7 +205,17 @@ test("auto mode writes the status without a shell and stays silent with one", as
   // Source still registers at factory time and on session_start.
   assert.equal(withoutShell.emitted.length, 2);
   assert.deepStrictEqual(withoutShell.statusCalls, [
-    [STATUS_KEY, formatUsageStatus(parseRemains(JSON.parse(readFileSync(new URL("./fixtures/remains-ok.json", import.meta.url), "utf8")) as unknown, NOW))],
+    [
+      STATUS_KEY,
+      formatUsageStatus(
+        parseRemains(
+          JSON.parse(
+            readFileSync(new URL("./fixtures/remains-ok.json", import.meta.url), "utf8"),
+          ) as unknown,
+          NOW,
+        ),
+      ),
+    ],
   ]);
 
   const withShell = fakePi();

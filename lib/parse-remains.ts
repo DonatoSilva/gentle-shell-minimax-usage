@@ -30,14 +30,24 @@ export function parseRemains(body: unknown, now: number): ProviderUsage | undefi
   if (!isRecord(body) || !isSuccess(body.base_resp)) return undefined;
   if (!Array.isArray(body.model_remains)) return undefined;
 
-  const bucket = body.model_remains.find(
-    (entry) => isRecord(entry) && entry.model_name === BUCKET,
-  );
+  const bucket = body.model_remains.find((entry) => isRecord(entry) && entry.model_name === BUCKET);
   if (!isRecord(bucket)) return undefined;
 
   const windows = [
-    toWindow("5h", FIVE_HOURS_S, bucket.current_interval_remaining_percent, bucket.remains_time, now),
-    toWindow("week", ONE_WEEK_S, bucket.current_weekly_remaining_percent, bucket.weekly_remains_time, now),
+    toWindow(
+      "5h",
+      FIVE_HOURS_S,
+      bucket.current_interval_remaining_percent,
+      bucket.remains_time,
+      now,
+    ),
+    toWindow(
+      "week",
+      ONE_WEEK_S,
+      bucket.current_weekly_remaining_percent,
+      bucket.weekly_remains_time,
+      now,
+    ),
   ].filter((w): w is UsageWindow => w !== undefined);
 
   if (windows.length === 0) return undefined;

@@ -65,7 +65,10 @@ test("falls back to the legacy endpoint when the primary is not ok", async () =>
   const usage = await fetchRemains("key", fetchFn, NOW);
 
   assert.deepStrictEqual(usage, parseRemains(ok, NOW));
-  assert.deepStrictEqual(calls.map((c) => c.url), [PRIMARY, LEGACY]);
+  assert.deepStrictEqual(
+    calls.map((c) => c.url),
+    [PRIMARY, LEGACY],
+  );
 });
 
 test("tries the legacy endpoint when the primary returns an error status body", async () => {
@@ -78,7 +81,10 @@ test("tries the legacy endpoint when the primary returns an error status body", 
   const usage = await fetchRemains("key", fetchFn, NOW);
 
   assert.deepStrictEqual(usage, parseRemains(ok, NOW));
-  assert.deepStrictEqual(calls.map((c) => c.url), [PRIMARY, LEGACY]);
+  assert.deepStrictEqual(
+    calls.map((c) => c.url),
+    [PRIMARY, LEGACY],
+  );
 });
 
 test("returns undefined when both endpoints fail", async () => {

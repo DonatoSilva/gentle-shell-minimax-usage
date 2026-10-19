@@ -18,12 +18,12 @@ resolves the API key (`getApiKeyForProvider`). Without it: no meter, and no key.
 - **Manual switch**: env var `MINIMAX_USAGE_MODE` with four values.
 - **Standalone surface**: `ctx.ui.setStatus("minimax-usage", ...)` in Pi's own footer.
 
-| `MINIMAX_USAGE_MODE` | Registers the shell source | Writes the Pi status |
-| --- | --- | --- |
-| `auto` (default) | yes | only when no Gentle Shell was detected |
-| `status` | yes | always (force the segment) |
-| `shell` | yes | never |
-| `off` | no | no |
+| `MINIMAX_USAGE_MODE` | Registers the shell source | Writes the Pi status                   |
+| -------------------- | -------------------------- | -------------------------------------- |
+| `auto` (default)     | yes                        | only when no Gentle Shell was detected |
+| `status`             | yes                        | always (force the segment)             |
+| `shell`              | yes                        | never                                  |
+| `off`                | no                         | no                                     |
 
 Detection is a heuristic (package installed ≠ shell running); the env var is the
 escape hatch, which is exactly why the switch exists.

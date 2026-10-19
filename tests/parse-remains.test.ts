@@ -33,7 +33,9 @@ test("maps the real /remains payload to a ProviderUsage snapshot", () => {
       {
         name: "general",
         limitReached: false,
-        windows: [{ label: "week", usedPercent: 6, windowSeconds: 604800, resetAt: NOW + 591900631 }],
+        windows: [
+          { label: "week", usedPercent: 6, windowSeconds: 604800, resetAt: NOW + 591900631 },
+        ],
       },
     ],
     fetchedAt: NOW,
@@ -79,14 +81,20 @@ test("marks only the exhausted window's limit as reached", () => {
 });
 
 test("marks the limit reached when nothing remains", () => {
-  const usage = parseRemains(bodyWith({ ...okBucket(), current_interval_remaining_percent: 0 }), NOW);
+  const usage = parseRemains(
+    bodyWith({ ...okBucket(), current_interval_remaining_percent: 0 }),
+    NOW,
+  );
 
   assert.equal(usage?.limits[0]?.windows[0]?.usedPercent, 100);
   assert.equal(usage?.limits[0]?.limitReached, true);
 });
 
 test("clamps usedPercent at 0 when remaining exceeds 100", () => {
-  const usage = parseRemains(bodyWith({ ...okBucket(), current_interval_remaining_percent: 120 }), NOW);
+  const usage = parseRemains(
+    bodyWith({ ...okBucket(), current_interval_remaining_percent: 120 }),
+    NOW,
+  );
 
   assert.equal(usage?.limits[0]?.windows[0]?.usedPercent, 0);
 });
