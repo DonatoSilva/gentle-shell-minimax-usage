@@ -6,8 +6,7 @@ Commit messages are owned by the user-level skills, not by this file. Load both 
 any message, from `~/.agents/skills/`:
 
 - **`conventional-commits-es`** — the format. Conventional Commits with an English type
-  (`feat`, `fix`, `docs`, `test`, …) and a Spanish subject: ≤50 characters when possible, hard cap
-  72. Body of 1–5 short bullets wrapped at 72 that state the outcome — never prose paragraphs,
+  (`feat`, `fix`, `docs`, `test`, …) and a Spanish subject: ≤50 characters when possible, hard cap 72. Body of 1–5 short bullets wrapped at 72 that state the outcome — never prose paragraphs,
   never a file list, never AI attribution.
 - **`work-unit-commits`** — the grouping. One commit per reviewable work unit, with tests and docs
   alongside the behavior they describe.

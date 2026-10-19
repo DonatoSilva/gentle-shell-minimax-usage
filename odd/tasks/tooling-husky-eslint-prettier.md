@@ -31,7 +31,7 @@ prettier para que el repo quede consistente desde el día uno.
   marca).
 - ESLint v9 usa flat config (`eslint.config.js`), no `.eslintrc`.
 - Husky v9+: el setup es `husky init` + scripts ejecutables en `.husky/`.
-- `lint-staged` corre solo sobre archivos *staged*, no sobre todo el repo.
+- `lint-staged` corre solo sobre archivos _staged_, no sobre todo el repo.
 
 ## Acceptance criteria
 
@@ -46,26 +46,26 @@ prettier para que el repo quede consistente desde el día uno.
 ## Tasks
 
 - [ ] T1 Editar `package.json` (deps + scripts) y crear configs (`.prettierrc.json`,
-  `eslint.config.js`, `commitlint.config.js`). Route: inline.
+      `eslint.config.js`, `commitlint.config.js`). Route: inline.
 - [ ] T2 Commit `chore(tooling): agregar husky, commitlint, eslint y prettier`
-  con aprobación previa. Route: inline.
+      con aprobación previa. Route: inline.
 - [ ] T3 `npm install` (instala las nuevas devDeps) + `npm run format` (prettier
-  escribe a todos los .ts/.json/.md) + `npm run lint:fix` (eslint --fix). Route:
-  inline.
+      escribe a todos los .ts/.json/.md) + `npm run lint:fix` (eslint --fix). Route:
+      inline.
 - [ ] T4 Commit `style: formatear con prettier y aplicar eslint --fix`. Route:
-  inline.
+      inline.
 - [ ] T5 Setup hooks: `npm run prepare` (husky init) + crear `.husky/commit-msg`
-  y `.husky/pre-commit`. Sin commit; los hooks no se versionan pero `.husky/` sí.
-  Route: inline.
+      y `.husky/pre-commit`. Sin commit; los hooks no se versionan pero `.husky/` sí.
+      Route: inline.
 - [ ] T6 Smoke: `git commit -m "bad"` debe ser rechazado por commitlint; commit
-  con formato correcto debe pasar pre-commit + commit-msg. Route: inline.
+      con formato correcto debe pasar pre-commit + commit-msg. Route: inline.
 
 ## Risk
 
 - Item 3 (contrato): los hooks cambian el flujo de commit — `commit-msg` rechaza
   mensajes que no siguen Conventional Commits. Aprobado por el usuario al pedir
   explícitamente el tooling.
-- Item 6 (no test): no hay test que pruebe que los hooks *falle*. Se mitiga con
+- Item 6 (no test): no hay test que pruebe que los hooks _falle_. Se mitiga con
   el smoke test manual de T6.
 
 ## Log

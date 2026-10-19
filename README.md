@@ -29,12 +29,12 @@ the shell the standalone path falls back to `MINIMAX_API_KEY` or
 The meter also works when Gentle Shell is not running, directly on Pi's own
 status line. Set `MINIMAX_USAGE_MODE` to pick the behavior:
 
-| `MINIMAX_USAGE_MODE` | Registers the shell source | Writes the Pi status |
-| --- | --- | --- |
-| `auto` (default) | yes | only when no Gentle Shell was detected |
-| `status` | yes | always (force the segment) |
-| `shell` | yes | never |
-| `off` | no | no |
+| `MINIMAX_USAGE_MODE` | Registers the shell source | Writes the Pi status                   |
+| -------------------- | -------------------------- | -------------------------------------- |
+| `auto` (default)     | yes                        | only when no Gentle Shell was detected |
+| `status`             | yes                        | always (force the segment)             |
+| `shell`              | yes                        | never                                  |
+| `off`                | no                         | no                                     |
 
 With the status surface active, Pi's footer shows a `minimax-usage` segment
 like:

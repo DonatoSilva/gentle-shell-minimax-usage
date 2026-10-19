@@ -6,8 +6,17 @@
   "license": "MIT",
   "author": "Donato Silva",
   "repository": "DonatoSilva/gentle-shell-minimax-usage",
-  "keywords": ["pi-package", "gentle-shell", "minimax", "usage"],
-  "files": ["extensions/", "lib/", "README.md"],
+  "keywords": [
+    "pi-package",
+    "gentle-shell",
+    "minimax",
+    "usage"
+  ],
+  "files": [
+    "extensions/",
+    "lib/",
+    "README.md"
+  ],
   "scripts": {
     "test": "node --experimental-strip-types --test tests/*.test.ts",
     "typecheck": "tsc --noEmit",
@@ -19,10 +28,19 @@
     "commitlint": "commitlint --edit"
   },
   "lint-staged": {
-    "*.ts": ["eslint --fix", "prettier --write"],
-    "*.{json,md}": ["prettier --write"]
+    "*.ts": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md}": [
+      "prettier --write"
+    ]
   },
-  "pi": { "extensions": ["./extensions/minimax-usage-source.ts"] },
+  "pi": {
+    "extensions": [
+      "./extensions/minimax-usage-source.ts"
+    ]
+  },
   "devDependencies": {
     "@commitlint/cli": "^19.6.0",
     "@commitlint/config-conventional": "^19.6.0",
