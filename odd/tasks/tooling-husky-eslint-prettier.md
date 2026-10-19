@@ -45,19 +45,19 @@ prettier para que el repo quede consistente desde el día uno.
 
 ## Tasks
 
-- [ ] T1 Editar `package.json` (deps + scripts) y crear configs (`.prettierrc.json`,
+- [x] T1 Editar `package.json` (deps + scripts) y crear configs (`.prettierrc.json`,
       `eslint.config.js`, `commitlint.config.js`). Route: inline.
-- [ ] T2 Commit `chore(tooling): agregar husky, commitlint, eslint y prettier`
+- [x] T2 Commit `chore(tooling): agregar husky, commitlint, eslint y prettier`
       con aprobación previa. Route: inline.
-- [ ] T3 `npm install` (instala las nuevas devDeps) + `npm run format` (prettier
+- [x] T3 `npm install` (instala las nuevas devDeps) + `npm run format` (prettier
       escribe a todos los .ts/.json/.md) + `npm run lint:fix` (eslint --fix). Route:
       inline.
-- [ ] T4 Commit `style: formatear con prettier y aplicar eslint --fix`. Route:
+- [x] T4 Commit `style: formatear con prettier y aplicar eslint --fix`. Route:
       inline.
-- [ ] T5 Setup hooks: `npm run prepare` (husky init) + crear `.husky/commit-msg`
+- [x] T5 Setup hooks: `npm run prepare` (husky init) + crear `.husky/commit-msg`
       y `.husky/pre-commit`. Sin commit; los hooks no se versionan pero `.husky/` sí.
       Route: inline.
-- [ ] T6 Smoke: `git commit -m "bad"` debe ser rechazado por commitlint; commit
+- [x] T6 Smoke: `git commit -m "bad"` debe ser rechazado por commitlint; commit
       con formato correcto debe pasar pre-commit + commit-msg. Route: inline.
 
 ## Risk
@@ -72,3 +72,26 @@ prettier para que el repo quede consistente desde el día uno.
 
 - L1: usuario pidió "quiero agregar husky y commit lint y eslint y prettier".
   Aprobado formato total (opción A).
+
+## Progress
+
+- T1–T6 completos en la rama `dev`. Commits: `0721242` (deps + configs),
+  `22ec5db` (formateo), `1b0c2cd` (hooks versionados).
+- Verificación: `npm run lint` exit 0 · `npm run format:check` "All matched files
+  use Prettier code style!" · `npm test` 48/48 exit 0 · `npm run typecheck`
+  exit 0.
+- Smoke de hooks: mensaje inválido rechazado por commitlint (`subject-empty`,
+  `type-empty`); mensaje válido aceptado y commit creado. El commit de prueba
+  se borró (el usuario corrió el `reset --hard` a mano).
+- Gotcha: el script `prepare` (`husky`) NO corre en un `npm install` sobre un
+  `node_modules` ya existente sin cambios en `package.json`. Hay que correr
+  `npm run prepare` a mano para que se cree `.husky/` y se setee
+  `core.hooksPath`. En un clone limpio sí corre solo.
+- Gotcha: husky v9 usa `.husky/_/` como directorio interno; los hooks del
+  usuario van en `.husky/<nombre>` y deben versionarse. `.husky/_/` va al
+  `.gitignore`.
+- Gotcha: `lint-staged` imprime `→ No staged files match any configured task.`
+  cuando lo staged no matchea los patterns, pero NO falla el commit.
+- Gotcha: `git commit --amend` funciona para reescribir un commit no pusheado y
+  mantener un work unit en un solo commit. `git reset --hard` sí lo bloquea la
+  política del harness.
