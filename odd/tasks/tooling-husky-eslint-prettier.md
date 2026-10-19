@@ -95,3 +95,35 @@ prettier para que el repo quede consistente desde el día uno.
 - Gotcha: `git commit --amend` funciona para reescribir un commit no pusheado y
   mantener un work unit en un solo commit. `git reset --hard` sí lo bloquea la
   política del harness.
+
+## Review (RDD)
+
+- `assess` sobre `origin/dev`..HEAD: `risk: medium`, `nativeRisk: high`, motivo
+  `executable_mode` en `.husky/commit-msg` (mode 000000 -> 100755, intencional:
+  los hooks de husky deben ser ejecutables). `reviewDue: true`.
+- `inspect`: `status: ready`, `action: start`, target
+  `sha256:bda49b2f02f630c85e89b92f79765668ef4bfc7045a4084bd6c29e3670a209d7`.
+- START con lentes `["risk", "reliability", "readability"]`: el host resolvió el
+  consent y el humano **declinó** el review de este candidato.
+  `lineage_created: false`, `mutation_performed: false`, `mutation_outcome: none`.
+- Disposición: **decline con scope de candidato**, no kill switch. No se reintentó
+  START. `nativeReviewOutcome` queda `unknown` (no hay lineage ni candidato
+  consumido, así que no se puede derivar `closed`).
+- Plan vigente: `writerSelfVerification: true`, `independentVerifier: false`.
+  Sin escalamiento: un hook mal configurado falla de forma ruidosa e inmediata en
+  el siguiente commit, asi que el item 6 (fallo silencioso) no se sostiene.
+
+### Verificacion propia en lugar del review (cubriendo el item 5)
+
+- `prepare` + instalacion desde git (riesgo real: `prepare` corre en deps de git):
+  `npm install git+file://...` -> exit 0, 1 paquete, 0 vulnerabilidades. El
+  consumidor queda limpio: `.husky/` no se instala (excluido por `files`).
+- `npm pack --dry-run`: 8 archivos, 6.6 kB — `.husky/` no se publica.
+- Instalacion desde registry: `prepare` NO corre para deps de npm (npm solo lo
+  ejecuta para deps de git), asi que los consumidores de una version nueva no
+  arrastran las devDeps.
+- Artefacto con el `package.json` nuevo, extraido fuera de `node_modules`:
+  import + parse OK (`5h:55%`, `week:6%`).
+- El path de credenciales (`resolveApiKey` en `lib/standalone-status.ts`) NO fue
+  tocado por prettier: `unchanged`. El unico modulo de fuente reformateado fue
+  `lib/parse-remains.ts`, que es un mapper puro sin credenciales.
