@@ -5,6 +5,7 @@
   "type": "module",
   "license": "MIT",
   "author": "Donato Silva",
+  "repository": "DonatoSilva/gentle-shell-minimax-usage",
   "keywords": ["pi-package", "gentle-shell", "minimax", "usage"],
   "files": ["extensions/", "lib/", "README.md"],
   "scripts": {
