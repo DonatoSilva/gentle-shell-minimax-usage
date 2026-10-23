@@ -1,7 +1,7 @@
 {
   "name": "gentle-shell-minimax-usage",
-  "version": "0.4.0",
-  "description": "MiniMax Token Plan quota (5h and weekly) as a native Gentle Shell usage source for Pi.",
+  "version": "0.5.0",
+  "description": "MiniMax Token Plan quota (5h and weekly) and local consumption view for Pi.",
   "type": "module",
   "license": "MIT",
   "author": "Donato Silva",
@@ -19,6 +19,7 @@
   ],
   "scripts": {
     "test": "node --experimental-strip-types --test tests/*.test.ts",
+    "preview": "node --experimental-strip-types scripts/preview-views.ts",
     "typecheck": "tsc --noEmit",
     "prepare": "husky",
     "lint": "eslint .",
