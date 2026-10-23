@@ -22,6 +22,7 @@ import {
   STATUS_NO_KEY,
   formatUsageStatus,
 } from "../lib/standalone-status.ts";
+import { CHECK_INTERVAL_MS } from "../lib/version-notice.ts";
 
 const NOW = 1_759_500_000_000;
 const HOME = "/home/tester";
@@ -462,22 +463,6 @@ function ledgerDirWithModels(now: number, models: string[]): string {
   return root;
 }
 
-/**
- * A temporary agent directory with usage on the last two days of the window:
- * the last day carries one model and the day before it another one.
- */
-function ledgerDirWithDays(now: number): string {
-  const root = mkdtempSync(join(tmpdir(), "minimax-days-"));
-  const bucket = join(root, "sessions", "2026-10-22");
-  mkdirSync(bucket, { recursive: true });
-  const lines = [
-    JSON.stringify(ledgerEntry(now, "MiniMax-M3.1-Flash-Preview")),
-    JSON.stringify(ledgerEntry(now - 86_400_000, "MiniMax-M3")),
-  ].join("\n");
-  writeFileSync(join(bucket, "session.jsonl"), `${lines}\n`, "utf8");
-  return root;
-}
-
 test("registers the usage and the details commands", () => {
   const { pi, registrations } = commandPi();
 
@@ -607,43 +592,8 @@ test("the details view switches tabs and scrolls", async () => {
   }
 });
 
-/** The detail of the selected day: the line that starts with its date. */
-function detailOf(text: string): string {
-  return text.split("\n").find((line) => /^\s*\d{4}-\d{2}-\d{2}/.test(line)) ?? "";
-}
-
-/** The local calendar day of an instant, the way the ledger buckets it. */
-function localDayOf(epochMs: number): string {
-  const day = new Date(epochMs);
-  const month = String(day.getMonth() + 1).padStart(2, "0");
-  const date = String(day.getDate()).padStart(2, "0");
-  return `${day.getFullYear()}-${month}-${date}`;
-}
-
-/** The row of the calendar of a day: 0 is Monday. */
-function weekdayRowOf(epochMs: number): number {
-  return (new Date(epochMs).getDay() + 6) % 7;
-}
-
-/** The UTC midnight of a local day key. */
-function dayMs(day: string): number {
-  return Date.parse(`${day}T00:00:00Z`);
-}
-
-/** The Monday on or before a local day key. */
-function mondayBefore(day: string): string {
-  const ms = dayMs(day);
-  const weekday = (new Date(ms).getUTCDay() + 6) % 7;
-  return new Date(ms - weekday * 86_400_000).toISOString().slice(0, 10);
-}
-
-/** The column of the calendar of a day: the weeks count from the Monday. */
-function weekColumnOf(day: string, firstDay: string): number {
-  return Math.round((dayMs(day) - dayMs(mondayBefore(firstDay))) / (7 * 86_400_000));
-}
-
-test("the arrows move the selected day and never the tab", async () => {
-  const root = ledgerDirWithDays(NOW);
+test("the arrows change neither the tab nor the view", async () => {
+  const root = ledgerDir(NOW);
   try {
     const { pi, registrations } = commandPi();
     minimaxUsageSource(
@@ -664,164 +614,24 @@ test("the arrows move the selected day and never the tab", async () => {
 
     // The trend tab is the chart.
     component?.handleInput?.("\t");
-    const trend = (component?.render(WIDTH) ?? []).join("\n");
-    assert.ok(trend.includes("▌"), trend);
-    assert.ok(trend.includes("[Trend]"), trend);
+    const before = (component?.render(WIDTH) ?? []).join("\n");
+    assert.ok(before.includes("[Trend]"), before);
+    assert.ok(before.includes("▌"), before);
 
-    // The last day of the window is the one that is selected.
-    assert.ok(detailOf(trend).includes("MiniMax-M3.1-Flash-Preview"), detailOf(trend));
-
-    // The left arrow moves the selected day, not the tab.
+    // The day selection is gone: the arrows change nothing at all.
     component?.handleInput?.("\x1b[D");
-    const after = (component?.render(WIDTH) ?? []).join("\n");
-    assert.ok(after.includes("[Trend]"), after);
-    assert.ok(after.includes("▌"), after);
-    assert.equal(detailOf(after).includes("Flash"), false, detailOf(after));
-
-    // The right arrow walks the days back.
     component?.handleInput?.("\x1b[C");
-    const back = (component?.render(WIDTH) ?? []).join("\n");
-    assert.ok(detailOf(back).includes("Flash"), detailOf(back));
-
-    // The kitty encoding of the arrows is the one a terminal with the kitty
-    // protocol sends: `CSI 1 ; modifiers final`.
+    // The kitty encoding of the arrows answers to nothing either.
     component?.handleInput?.("\x1b[1;1D");
-    const kitty = (component?.render(WIDTH) ?? []).join("\n");
-    assert.equal(detailOf(kitty).includes("Flash"), false, detailOf(kitty));
     component?.handleInput?.("\x1b[1;1C");
-    assert.ok(
-      detailOf((component?.render(WIDTH) ?? []).join("\n")).includes("Flash"),
-      detailOf((component?.render(WIDTH) ?? []).join("\n")),
-    );
+    const after = (component?.render(WIDTH) ?? []).join("\n");
 
-    // The kitty encoding of the tab switches tabs too.
+    assert.equal(after, before);
+    assert.ok(after.includes("[Trend]"), after);
+
+    // The kitty encoding of the tab still switches the tab.
     component?.handleInput?.("\x1b[9u");
-    const nextTab = (component?.render(WIDTH) ?? []).join("\n");
-    assert.ok(nextTab.includes("[Heatmap]"), nextTab);
-  } finally {
-    rmSync(root, { recursive: true, force: true });
-  }
-});
-
-test("a click on a column of the chart selects that day", async () => {
-  const root = ledgerDirWithDays(NOW);
-  try {
-    const { pi, registrations } = commandPi();
-    minimaxUsageSource(
-      pi,
-      baseRuntime({
-        env: { PI_CODING_AGENT_DIR: root },
-        now: () => NOW,
-      }),
-    );
-    const { ctx, factories } = fakeCtx("tui");
-
-    await registrations[1]?.handler("", ctx);
-
-    const { theme } = fakeTheme();
-    const { tui } = fakeTui();
-    const component = factories[0]?.(tui, theme, {}, () => {});
-    assert.ok(component);
-
-    component?.handleInput?.("\t");
-    const before = (component?.render(WIDTH) ?? []).join("\n");
-
-    // A click on the first column of the chart: the first day of the window,
-    // which carries no usage.
-    component?.handleMouse?.({ type: "click", button: "left", x: 1, y: 6 });
-    const after = (component?.render(WIDTH) ?? []).join("\n");
-    assert.notEqual(after, before);
-    assert.ok(after.includes("no usage"), after);
-
-    // A click outside the columns of the chart changes nothing.
-    component?.handleMouse?.({ type: "click", button: "left", x: 0, y: 6 });
-    assert.equal((component?.render(WIDTH) ?? []).join("\n"), after);
-    component?.handleMouse?.({ type: "click", button: "left", x: 1, y: 0 });
-    assert.equal((component?.render(WIDTH) ?? []).join("\n"), after);
-  } finally {
-    rmSync(root, { recursive: true, force: true });
-  }
-});
-
-test("a click on a cell of the heatmap selects that day", async () => {
-  const root = ledgerDirWithDays(NOW);
-  try {
-    const { pi, registrations } = commandPi();
-    minimaxUsageSource(
-      pi,
-      baseRuntime({
-        env: { PI_CODING_AGENT_DIR: root },
-        now: () => NOW,
-      }),
-    );
-    const { ctx, factories } = fakeCtx("tui");
-
-    await registrations[1]?.handler("", ctx);
-
-    const { theme } = fakeTheme();
-    const { tui } = fakeTui();
-    const component = factories[0]?.(tui, theme, {}, () => {});
-    assert.ok(component);
-
-    // The heatmap tab is the third one.
-    component?.handleInput?.("\t");
-    component?.handleInput?.("\t");
-    const before = (component?.render(WIDTH) ?? []).join("\n");
-    assert.ok(before.includes("[Heatmap]"), before);
-
-    // The click lands on the cell of the day before the last one of the
-    // ledger: the column of its week and the row of its weekday.
-    const first = localDayOf(NOW - 86_400_000);
-    const column = weekColumnOf(first, first);
-    const row = weekdayRowOf(NOW - 86_400_000);
-    component?.handleMouse?.({ type: "click", button: "left", x: 5 + column * 2, y: 4 + row });
-    const after = (component?.render(WIDTH) ?? []).join("\n");
-
-    assert.notEqual(after, before);
-    assert.ok(detailOf(after).includes(first), detailOf(after));
-
-    // The selection is shared: the trend tab details the same day.
-    component?.handleInput?.("\x1b[Z");
-    const trend = (component?.render(WIDTH) ?? []).join("\n");
-    assert.ok(detailOf(trend).includes(first), detailOf(trend));
-  } finally {
-    rmSync(root, { recursive: true, force: true });
-  }
-});
-
-test("a click outside the calendar of the heatmap changes nothing", async () => {
-  const root = ledgerDirWithDays(NOW);
-  try {
-    const { pi, registrations } = commandPi();
-    minimaxUsageSource(
-      pi,
-      baseRuntime({
-        env: { PI_CODING_AGENT_DIR: root },
-        now: () => NOW,
-      }),
-    );
-    const { ctx, factories } = fakeCtx("tui");
-
-    await registrations[1]?.handler("", ctx);
-
-    const { theme } = fakeTheme();
-    const { tui } = fakeTui();
-    const component = factories[0]?.(tui, theme, {}, () => {});
-    assert.ok(component);
-
-    component?.handleInput?.("\t");
-    component?.handleInput?.("\t");
-    const before = (component?.render(WIDTH) ?? []).join("\n");
-
-    // The label of the weekday is not a cell.
-    component?.handleMouse?.({ type: "click", button: "left", x: 1, y: 4 + weekdayRowOf(NOW) });
-    assert.equal((component?.render(WIDTH) ?? []).join("\n"), before);
-    // A row above the calendar is not a cell either.
-    component?.handleMouse?.({ type: "click", button: "left", x: 5, y: 0 });
-    assert.equal((component?.render(WIDTH) ?? []).join("\n"), before);
-    // A click with the right button never selects a day.
-    component?.handleMouse?.({ type: "click", button: "right", x: 5, y: 4 + weekdayRowOf(NOW) });
-    assert.equal((component?.render(WIDTH) ?? []).join("\n"), before);
+    assert.ok((component?.render(WIDTH) ?? []).join("\n").includes("[Heatmap]"));
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -1132,4 +942,128 @@ test("a failing fetch paints a state instead of throwing", async () => {
   const text = (component?.render(WIDTH) ?? []).join("\n");
 
   assert.ok(text.includes("minimax · no data"), text);
+});
+
+// --- version notice ---------------------------------------------------------
+
+/** Lets the pending promises of the status and of the version check settle. */
+async function settle(): Promise<void> {
+  for (let index = 0; index < 20; index += 1) {
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+}
+
+/** The body of the `remains-ok` fixture. */
+function remainsBody(): unknown {
+  return JSON.parse(
+    readFileSync(new URL("./fixtures/remains-ok.json", import.meta.url), "utf8"),
+  ) as unknown;
+}
+
+/**
+ * A fetch that answers the quota endpoint with the fixture and the registry
+ * with a version.
+ */
+function versionFetch(latest: string, calls: { registry: number }): FetchFn {
+  return async (...args: unknown[]) => {
+    const url = String(args[0]);
+    if (url.startsWith("https://registry.npmjs.org/")) {
+      calls.registry += 1;
+      return { ok: true, json: async () => ({ version: latest }) } as Response;
+    }
+    return { ok: true, json: async () => remainsBody() } as Response;
+  };
+}
+
+/** A fetch whose registry answer is a network error. */
+function brokenRegistryFetch(): FetchFn {
+  return async (...args: unknown[]) => {
+    const url = String(args[0]);
+    if (url.startsWith("https://registry.npmjs.org/")) {
+      throw new Error("registry down");
+    }
+    return { ok: true, json: async () => remainsBody() } as Response;
+  };
+}
+
+test("the status is written again with the notice when the registry is newer", async () => {
+  const calls = { registry: 0 };
+  const { pi, fire, statusCalls } = fakePi();
+  minimaxUsageSource(
+    pi,
+    baseRuntime({
+      env: { MINIMAX_USAGE_MODE: "status", MINIMAX_API_KEY: "env-key" },
+      fetchFn: versionFetch("9.9.9", calls),
+      // The clock is past the cache of the previous checks, so the registry
+      // is asked again.
+      now: () => NOW + 2 * CHECK_INTERVAL_MS,
+    }),
+  );
+
+  fire("session_start");
+  await settle();
+
+  assert.deepStrictEqual(statusCalls, [
+    [STATUS_KEY, "MM 5h 55% · week 6%"],
+    [STATUS_KEY, "MM 5h 55% · week 6% · new 9.9.9"],
+  ]);
+  assert.equal(calls.registry, 1);
+});
+
+test("a failing version check leaves the status alone", async () => {
+  const { pi, fire, statusCalls } = fakePi();
+  minimaxUsageSource(
+    pi,
+    baseRuntime({
+      env: { MINIMAX_USAGE_MODE: "status", MINIMAX_API_KEY: "env-key" },
+      fetchFn: brokenRegistryFetch(),
+      now: () => NOW + 4 * CHECK_INTERVAL_MS,
+    }),
+  );
+
+  fire("session_start");
+  await settle();
+
+  assert.deepStrictEqual(statusCalls, [[STATUS_KEY, "MM 5h 55% · week 6%"]]);
+});
+
+test("the version check never runs in the shell source path", async () => {
+  const calls = { registry: 0 };
+  const { pi, fire, statusCalls } = fakePi();
+  minimaxUsageSource(
+    pi,
+    baseRuntime({
+      env: { MINIMAX_USAGE_MODE: "shell", MINIMAX_API_KEY: "env-key" },
+      exists: () => true,
+      fetchFn: versionFetch("9.9.9", calls),
+      now: () => NOW + 6 * CHECK_INTERVAL_MS,
+    }),
+  );
+
+  fire("session_start");
+  fire("agent_settled");
+  await settle();
+
+  assert.equal(calls.registry, 0);
+  assert.equal(statusCalls.length, 0);
+});
+
+test("the version check never runs in the print and json modes", async () => {
+  const calls = { registry: 0 };
+  const { pi, fire, statusCalls } = fakePi();
+  minimaxUsageSource(
+    pi,
+    baseRuntime({
+      env: { MINIMAX_USAGE_MODE: "status", MINIMAX_API_KEY: "env-key" },
+      fetchFn: versionFetch("9.9.9", calls),
+      now: () => NOW + 8 * CHECK_INTERVAL_MS,
+    }),
+  );
+
+  fire("session_start", { mode: "print" });
+  fire("agent_settled", { mode: "json" });
+  await settle();
+
+  assert.equal(calls.registry, 0);
+  assert.equal(statusCalls.length, 0);
 });

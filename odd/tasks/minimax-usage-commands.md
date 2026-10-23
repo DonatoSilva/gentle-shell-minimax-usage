@@ -320,6 +320,24 @@ Acceptance:
   - Why: a vertical legend under the chart has to be read backwards, after the
     bars it explains; and the heatmap was the only tab without the detail of
     the day.
+- L28 (user): "aprovecha para quitar lo de las <- -> dias quita eso que no funciono + la 3... pero no entiendo como eso la 3 le avisa a los pineados si los pineado no actualizan"
+  - What changed: the day selection is GONE. The arrows and the click no longer
+    pick a day, the detail line of the day disappears from the trend and the
+    heatmap, and the heatmap stops marking a selected cell. The hints line is
+    now `↑↓ scroll · tab change · r refresh · esc close`. The key decoder stays
+    (it still answers for the tab, the scroll and the escape) and the kitty
+    encoding fix remains in the tree, so the day selection is a small
+    re-enable if the arrows ever answer in a terminal.
+  - What changed (the notice): the status line can now say that a newer
+    version exists: the extension reads its own version from its package.json,
+    asks the registry for the latest one (cached, never blocking, never
+    throwing) and appends `· new <version>` to the status when the registry has
+    something newer.
+  - The correction: the notice does NOT reach the users pinned on 0.4.0. It
+    lives in the code they have installed, and their installed code is the old
+    one. The only channels that reach them are outside the package: the npm
+    page (a new publish carries the fixed README) and the GitHub README, an
+    issue or a release note. The notice helps the users who are unpinned.
 - L25 (user): "ajuste antes de publicar en el overview pon tambien los modelossi quias el tabde models"
   - What changed: the `Overview` tab also carries the models, the same rows
     as the `Models` tab, between the headline numbers and the cumulative

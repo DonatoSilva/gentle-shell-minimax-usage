@@ -41,14 +41,6 @@ export interface DetailsViewOptions {
   tzOffsetMinutes?: number;
   /** The tab to paint. Defaults to `overview`. */
   tab?: DetailsTab;
-  /**
-   * The day of the window to detail, by index: 0 is the first day of the
-   * window. When it is not given the last day of the window is used.
-   *
-   * The selection is an input of the renderer, never internal state: the
-   * same options always paint the same view.
-   */
-  selectedDay?: number;
   /** Rows of the trend chart. Defaults to `DEFAULT_TREND_ROWS`. */
   trendRows?: number;
 }
@@ -96,9 +88,6 @@ const HEAT_LEGEND_WIDTH = visibleWidth(HEAT_LEGEND_TEXT);
 /** The title of the section of the trend tab. */
 const TREND_TITLE = "Daily trend";
 
-/** The rows the title of the section of the trend tab takes. */
-const TREND_TITLE_ROWS = 1;
-
 /** Cells of the bar of each model, and the width of its name. */
 const MODEL_BAR_CELLS = 12;
 const MODEL_NAME_WIDTH = 26;
@@ -107,7 +96,7 @@ const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 const DAY_MS = 86_400_000;
 const TITLE = "🐙 MiniMax · Pi usage (local)";
-const HINTS = "↑↓ scroll · ←→ day · tab cambia · r refresh · esc close";
+const HINTS = "↑↓ scroll · tab change · r refresh · esc close";
 
 /**
  * Paints the MiniMax console shape for the local ledger.
@@ -145,9 +134,9 @@ export function renderDetailsView(
 /**
  * Everything the tabs of the view need, computed once.
  *
- * The window of the view, its days with the models that made them, the
- * ranking of the models and the day that is selected. It is the same for
- * every tab: the trend and the heatmap share the selection.
+ * The window of the view, its days with the models that made them and the
+ * ranking of the models. It is the same for every tab: the trend and the
+ * heatmap paint the same window.
  */
 interface ViewContext {
   windowDays: number;
@@ -162,8 +151,6 @@ interface ViewContext {
   windowModels: readonly LedgerDayModel[];
   /** The color of every model of the window: its index in the ranking. */
   colors: ReadonlyMap<string, number>;
-  /** The day the view details. */
-  selected: TrendDay | undefined;
   busiest: number;
   startMs: number;
   endMs: number;
@@ -225,10 +212,9 @@ function buildContext(
   }
   const busiest = Math.max(0, ...trendDays.map((day) => day.totalTokens));
   // The models of the window, busiest first: they own the colors of the
-  // chart, of the legend and of the detail.
+  // chart and of the legend.
   const windowModels = rankModels(trendDays);
   const colors = colorIndexes(windowModels);
-  const selected = trendDays[clampIndex(options?.selectedDay, trendDays.length)] ?? trendDays[0];
 
   const trendRows = normalizeTrendRows(options?.trendRows ?? DEFAULT_TREND_ROWS);
   // The heatmap draws the whole history of the ledger. A summary without one
@@ -245,7 +231,6 @@ function buildContext(
     trendDays,
     windowModels,
     colors,
-    selected,
     busiest,
     startMs,
     endMs,
@@ -295,23 +280,20 @@ function overviewContent(theme: ViewTheme, width: number, ctx: ViewContext): str
   const footer = `${formatTokens(ctx.totals.totalTokens)} total · ${formatTokens(ctx.peak)} peak · ${ctx.activeDays} active days`;
 
   // The overview also carries the models, the same rows as the Models tab:
-  // the first tab is the one people look at, so it has the whole picture. And
-  // the day the arrows select, so they always change something visible.
+  // the first tab is the one people look at, so it has the whole picture.
   return [
     ` ${labelRow}`.trimEnd(),
     ` ${valueRow}`.trimEnd(),
     "",
     ...modelsContent(theme, ctx),
     "",
-    ...dayDetail(theme, ctx.selected, ctx.colors, width),
-    "",
     ` ${theme.muted(footer)}`,
   ];
 }
 
 /**
- * The trend: the legend of the models, the daily column chart with the dates
- * under it and the detail of the selected day.
+ * The trend: the legend of the models and the daily column chart with the
+ * dates under it.
  *
  * The legend comes BEFORE the chart: the eye reads it first and keeps it as
  * the context of the bars that follow.
@@ -326,8 +308,6 @@ function trendContent(theme: ViewTheme, width: number, ctx: ViewContext): string
     ...modelLegend(theme, ctx.windowModels, ctx.colors, width),
     ...trendChart(theme, ctx.trendDays, ctx.busiest, ctx.trendRows, layout, ctx.colors),
     dateRow(theme, ctx.startMs, ctx.endMs, chartWidth + 1),
-    "",
-    ...dayDetail(theme, ctx.selected, ctx.colors, width),
   ];
 }
 
@@ -363,7 +343,7 @@ function chartLayout(available: number, days: number): ChartLayout {
 
 /**
  * The heatmap: the weekday × week grid over the whole history, with the
- * weight scale at its right and the detail of the selected day under it.
+ * weight scale at its right.
  */
 function heatmapContent(theme: ViewTheme, width: number, ctx: ViewContext): string[] {
   // The grid draws the WHOLE history of the ledger, not only the window:
@@ -382,15 +362,8 @@ function heatmapContent(theme: ViewTheme, width: number, ctx: ViewContext): stri
   if (startMs === 0) return [` ${theme.muted("No local MiniMax usage.")}`];
 
   const geometry = calendarGeometry(startMs, endMs, width);
-  // The day that is selected is the one of the window: the calendar marks
-  // it when it is inside of it.
-  const selectedMs = ctx.selected ? dayStart(ctx.selected.day) : 0;
 
-  return [
-    ...heatmap(theme, byDay, geometry, busiest, selectedMs),
-    "",
-    ...dayDetail(theme, ctx.selected, ctx.colors, width),
-  ];
+  return heatmap(theme, byDay, geometry, busiest);
 }
 
 /** The models: what was spent per model, with a bar per model. */
@@ -487,7 +460,6 @@ function heatmap(
   byDay: Map<string, number>,
   geometry: CalendarGeometry,
   busiest: number,
-  selectedMs: number,
 ): string[] {
   // The weight scale sits to the right of the calendar, on its middle row.
   const legend = heatLegend(theme);
@@ -505,7 +477,7 @@ function heatmap(
         continue;
       }
       const value = byDay.get(dayKey(dayMs)) ?? 0;
-      cells += heatCell(theme, value, busiest, dayMs === selectedMs).repeat(HEAT_CELL_WIDTH);
+      cells += heatCell(theme, value, busiest).repeat(HEAT_CELL_WIDTH);
     }
     const right = row === legendRow ? `  ${legend}` : "";
     return ` ${theme.label(padVisible(weekday, 3))} ${cells}${right}`;
@@ -514,14 +486,10 @@ function heatmap(
 
 /**
  * A heatmap cell: its shape and its color come from the level of the day.
- *
- * The cell of the day that is selected stands out from the scale of the
- * calendar.
  */
-function heatCell(theme: ViewTheme, value: number, busiest: number, selected: boolean): string {
+function heatCell(theme: ViewTheme, value: number, busiest: number): string {
   const level = heatLevel(value, busiest);
   const glyph = HEAT_RAMP[level] ?? HEAT_RAMP[0];
-  if (selected) return theme.bold(theme.accent(glyph));
   return theme.heat(level, glyph);
 }
 
@@ -624,7 +592,7 @@ function stackOf(day: TrendDay, height: number): string[] {
 
 /**
  * The models of the window, busiest first: the ranking owns the colors of
- * the chart, of the legend and of the detail.
+ * the chart and of the legend.
  */
 function rankModels(days: readonly TrendDay[]): LedgerDayModel[] {
   const totals = new Map<string, LedgerDayModel>();
@@ -742,148 +710,6 @@ function legendGroups(entries: readonly LegendEntry[], width: number): number[][
   return groups;
 }
 
-/**
- * The detail of the selected day: the day, its total and the models that
- * make it up, each one in the color of its model, with its tokens and its
- * share of the day.
- *
- * It is one logical line: it wraps when the view is too narrow for it.
- */
-function dayDetail(
-  theme: ViewTheme,
-  day: TrendDay | undefined,
-  colors: ReadonlyMap<string, number>,
-  width: number,
-): string[] {
-  if (!day) return [` ${theme.muted("No day selected.")}`];
-  const models = day.models.filter((model) => model.totalTokens > 0).sort(byTokens);
-  if (day.totalTokens <= 0 || models.length === 0) {
-    return [` ${theme.muted(`${day.day} · no usage`)}`];
-  }
-  const parts = [
-    `${theme.value(day.day)} · ${theme.value(formatTokens(day.totalTokens))} tokens`,
-    ...models.map((model) => {
-      const share = Math.round((model.totalTokens / day.totalTokens) * 100);
-      return `${modelPaint(theme, colors.get(model.model) ?? 0, model.model)} ${formatTokens(
-        model.totalTokens,
-      )} ${share}%`;
-    }),
-  ];
-  return wrapParts(parts, width);
-}
-
-/**
- * Packs the parts of the detail into lines that fit the width: the detail is
- * one line that wraps when it does not fit.
- */
-function wrapParts(parts: readonly string[], width: number): string[] {
-  const lines: string[] = [];
-  let line = "";
-  for (const part of parts) {
-    const candidate = line === "" ? ` ${part}` : `${line} · ${part}`;
-    if (line !== "" && visibleWidth(candidate) > width) {
-      lines.push(line);
-      line = ` ${part}`;
-      continue;
-    }
-    line = candidate;
-  }
-  if (line !== "") lines.push(line);
-  return lines;
-}
-
-/**
- * The day a click at the column `x` lands on, or `undefined` when the click
- * is not on a column of the chart.
- *
- * The chart starts at the second column of the view and every day owns a
- * group of cells: the bar of the day and the separator that follows it.
- */
-export function trendDayAt(x: number, width: number, days: number): number | undefined {
-  const layout = chartLayout(Math.max(1, width - 1), days);
-  const cell = x - 1;
-  if (cell < 0) return undefined;
-  let start = 0;
-  for (const [index, group] of layout.groups.entries()) {
-    if (cell < start + group) {
-      // Only the bar of the day is a column: the separator between two days
-      // is not.
-      return cell - start < layout.bar ? index : undefined;
-    }
-    start += group;
-  }
-  return undefined;
-}
-
-/**
- * The day the window of the view ends on: the local day of `now`.
- *
- * The caller and the renderer have to agree on it: the index of a day of the
- * window only means something with its anchor.
- */
-export function windowAnchorDay(
-  summary: LedgerSummary,
-  now: number,
-  offsetMinutes?: number,
-): string {
-  return localDayKey(now, offsetMinutes ?? summary.tzOffsetMinutes ?? 0);
-}
-
-/**
- * The row of the content of the trend tab where the chart starts: the title
- * of the section and the legend of the models come before it.
- */
-export function trendChartTop(
-  summary: LedgerSummary,
-  width: number,
-  options?: DetailsViewOptions,
-): number {
-  const ctx = buildContext(summary, options);
-  if (!ctx) return 0;
-  return TREND_TITLE_ROWS + legendGroups(legendEntries(ctx.windowModels), width).length;
-}
-
-/**
- * The index of the day of the calendar under the pointer, inside the window
- * of the view.
- *
- * `x` is the column of the cell and `y` its row (0 is Monday). A click
- * outside the calendar, or on a day that is not part of the window, changes
- * nothing: the selection is always an index of the window.
- */
-export function heatmapSelectionAt(
-  x: number,
-  y: number,
-  width: number,
-  summary: LedgerSummary,
-  now: number,
-): number | undefined {
-  if (y < 0 || y >= WEEKDAYS.length) return undefined;
-  const history = summary.history?.length ? summary.history : summary.days;
-  if (history.length === 0) return undefined;
-
-  let startMs = 0;
-  let endMs = 0;
-  for (const day of history) {
-    const ms = dayStart(day.day);
-    if (startMs === 0 || ms < startMs) startMs = ms;
-    if (ms > endMs) endMs = ms;
-  }
-  const geometry = calendarGeometry(startMs, endMs, width);
-  const column = Math.floor((x - HEAT_LABEL_WIDTH) / HEAT_CELL_WIDTH);
-  if (column < 0 || column >= geometry.columns) return undefined;
-
-  const dayMs = geometry.anchorMs + ((geometry.firstColumn + column) * 7 + y) * DAY_MS;
-  // The days outside the history are not cells of the calendar.
-  if (dayMs < startMs || dayMs > endMs) return undefined;
-
-  // The index of the day inside the window of the view.
-  const anchor = windowAnchorDay(summary, now);
-  const index = Math.round((dayMs - dayStart(anchor)) / DAY_MS) + (summary.windowDays - 1);
-  if (index < 0 || index >= summary.windowDays) return undefined;
-  return index;
-}
-
 /** Orders two models by the tokens they spent, the busiest one first. */
 function byTokens(a: { totalTokens: number }, b: { totalTokens: number }): number {
   return b.totalTokens - a.totalTokens;
@@ -992,17 +818,6 @@ function normalizeWindowDays(windowDays: number): number {
 function normalizeTrendRows(rows: number): number {
   if (!Number.isFinite(rows) || rows < 1) return DEFAULT_TREND_ROWS;
   return Math.floor(rows);
-}
-
-/**
- * The index of the selected day, clamped to the window: the last day of the
- * window when the selection is not given.
- */
-function clampIndex(index: number | undefined, length: number): number {
-  if (length <= 0) return 0;
-  const wanted = index ?? length - 1;
-  if (!Number.isFinite(wanted)) return length - 1;
-  return Math.min(length - 1, Math.max(0, Math.floor(wanted)));
 }
 
 /** Epoch of a `YYYY-MM-DD` day at UTC midnight. */

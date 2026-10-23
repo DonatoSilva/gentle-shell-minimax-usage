@@ -48,6 +48,19 @@ test("formatUsageStatus rounds fractional percents", () => {
   assert.equal(formatUsageStatus(usage), "MM 5h 45%");
 });
 
+test("formatUsageStatus without a notice is exactly the current text", () => {
+  const usage = parseRemains(loadOkFixture(), NOW);
+  assert.ok(usage);
+  assert.equal(formatUsageStatus(usage), "MM 5h 55% · week 6%");
+  assert.equal(formatUsageStatus(usage, undefined), "MM 5h 55% · week 6%");
+});
+
+test("formatUsageStatus appends the notice of a newer version", () => {
+  const usage = parseRemains(loadOkFixture(), NOW);
+  assert.ok(usage);
+  assert.equal(formatUsageStatus(usage, "0.6.0"), "MM 5h 55% · week 6% · new 0.6.0");
+});
+
 test("formatUsageStatus returns undefined without usage or windows", () => {
   assert.equal(formatUsageStatus(undefined), undefined);
   const windowless: ProviderUsage = {
@@ -56,6 +69,10 @@ test("formatUsageStatus returns undefined without usage or windows", () => {
     fetchedAt: NOW,
   };
   assert.equal(formatUsageStatus(windowless), undefined);
+});
+
+test("formatUsageStatus returns undefined without usage, even with a notice", () => {
+  assert.equal(formatUsageStatus(undefined, "0.6.0"), undefined);
 });
 
 test("resolveApiKey prefers a non-empty MINIMAX_API_KEY over auth.json", () => {

@@ -12,6 +12,7 @@ import {
   type CommandRegistrationOptions,
 } from "../lib/commands.ts";
 import { fetchRemains, type FetchFn } from "../lib/fetch-remains.ts";
+import type { ProviderUsage } from "../lib/parse-remains.ts";
 import {
   detectGentleShell,
   decideSurface,
@@ -25,6 +26,7 @@ import {
   formatUsageStatus,
   resolveApiKey,
 } from "../lib/standalone-status.ts";
+import { fetchLatestVersion, readPackageVersion } from "../lib/version-notice.ts";
 
 // Literal contract strings: gentle-pi exposes no `main`/`exports` to import.
 const CHANNEL = "gentle-pi:usage-source/v1";
@@ -94,6 +96,12 @@ export default function minimaxUsageSource(
     });
   };
 
+  // The last usage the status was painted with, and the version the notice
+  // announces: the check of the registry answers later and the status is
+  // written again with the notice.
+  let lastUsage: ProviderUsage | undefined;
+  let notice: string | undefined;
+
   const refreshStatus = (_event: unknown, ctx?: ExtensionCtx): void => {
     try {
       if (ctx?.mode === "print" || ctx?.mode === "json") return;
@@ -109,7 +117,14 @@ export default function minimaxUsageSource(
 
       void fetchRemains(apiKey, boundFetch, rt.now())
         .then((usage) => {
-          ctx?.ui?.setStatus(STATUS_KEY, formatUsageStatus(usage) ?? STATUS_NO_DATA);
+          lastUsage = usage;
+          ctx?.ui?.setStatus(STATUS_KEY, formatUsageStatus(usage, notice) ?? STATUS_NO_DATA);
+          // The check of the registry never blocks the status: the status is
+          // already written, and the check answers later.
+          void announceNewerVersion(rt, ctx, (version) => {
+            notice = version;
+            ctx?.ui?.setStatus(STATUS_KEY, formatUsageStatus(lastUsage, notice) ?? STATUS_NO_DATA);
+          });
         })
         .catch(() => {
           ctx?.ui?.setStatus(STATUS_KEY, STATUS_NO_DATA);
@@ -128,5 +143,31 @@ export default function minimaxUsageSource(
   if (surface.standaloneStatus) {
     pi.on("session_start", refreshStatus);
     pi.on("agent_settled", refreshStatus);
+  }
+}
+
+/**
+ * Asks the registry for a newer published version and announces it.
+ *
+ * The check never blocks the status and never throws: a registry that is
+ * down, a missing package.json or an answer that is not newer all end
+ * without a notice, and the status stays as it is.
+ */
+async function announceNewerVersion(
+  rt: UsageRuntime,
+  ctx: ExtensionCtx | undefined,
+  announce: (version: string) => void,
+): Promise<void> {
+  try {
+    const currentVersion = readPackageVersion();
+    if (!currentVersion) return;
+
+    const boundFetch: FetchFn = (url, init) =>
+      rt.fetchFn(url, { ...init, signal: AbortSignal.timeout(STATUS_TIMEOUT_MS) });
+    const latest = await fetchLatestVersion(boundFetch, rt.now(), { currentVersion });
+    if (!latest) return;
+    announce(latest);
+  } catch {
+    // A notice is never worth an exception.
   }
 }

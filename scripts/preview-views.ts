@@ -4,11 +4,10 @@
 // consumption view is built from the local session history and the quota panel
 // comes from the live endpoint, with the state your own key returns.
 //
-//   node --experimental-strip-types scripts/preview-views.ts [tab] [selectedDay]
+//   node --experimental-strip-types scripts/preview-views.ts [tab]
 //
-// The tab is one of `overview`, `trend`, `heatmap` and `models`; the details
-// view is painted as the full screen it is in Pi. The selected day is the
-// index of the day inside the window, the one the arrows and the clicks move.
+// The tab is one of `overview`, `trend` and `heatmap`; the details view is
+// painted as the full screen it is in Pi.
 // The script is not part of the published package.
 
 import { readFileSync } from "node:fs";
@@ -43,16 +42,12 @@ const tab: DetailsTab = DETAILS_TABS.includes(requested as DetailsTab)
   ? (requested as DetailsTab)
   : "overview";
 
-// The selected day of the window: the index the arrows and the clicks move.
-const requestedDay = Number(process.argv[3]);
-const selectedDay = Number.isInteger(requestedDay) ? requestedDay : undefined;
-
 const dir = resolveSessionsDir(env, home);
 const entries = readSessionEntries(dir);
 const summary = summarizeUsage(entries, { provider: "minimax", windowDays: WINDOW_DAYS, now });
 
 console.log(`# /minimax:details  (${tab} tab, ledger: ${dir})`);
-const details = renderDetailsView(summary, theme, WIDTH, { now, tab, selectedDay });
+const details = renderDetailsView(summary, theme, WIDTH, { now, tab });
 const padding = Math.max(0, HEIGHT - details.length);
 console.log([...details, ...Array.from({ length: padding }, () => "")].join("\n"));
 console.log("");
