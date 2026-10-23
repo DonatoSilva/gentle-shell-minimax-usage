@@ -112,9 +112,10 @@ Acceptance:
       and the release checklist. Route: inline. Commits:
       `docs(readme): documentar los comandos` (`64588ac`) +
       `chore(release): subir la versión a 0.5.0` (`4d6b03d`).
-- [ ] T7 Verification: `npm test`, `npm run typecheck`, `npm run lint`,
-      `npm run format:check`, the text preview of both views, and the native review
-      of the work-unit commits. Route: inline.
+- [x] T7 Verification: `npm test` (129/129), `npm run typecheck`, `npm run lint`,
+      `npm run format:check`, the text preview of both views, the load in a real
+      Pi and the native assessment of the committed range.
+      Route: inline.
 
 ## Log
 
@@ -158,3 +159,10 @@ Acceptance:
   typecheck, eslint and prettier clean. Four units go over the 400 line review
   budget (the ledger, the usage panel, the details view and the commands); the
   overage was reported instead of shrinking the diff.
+- L12 (2026-10-22, parent): the native assessment of the committed range
+  (`baseRef fc325c1`, 19 paths, 3085 changed lines) answered `risk: medium`,
+  `reviewDue: false`, `reviewDueReason: under_budget`: the controller does not
+  ask for a native review of this candidate, so none was started. The plan it
+  returned keeps the writer self-verification (129 tests, typecheck, eslint,
+  prettier, the preview and the load in a real Pi) and adds no independent
+  verifier, because no Task Size high-risk item was escalated.
