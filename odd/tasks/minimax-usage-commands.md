@@ -92,25 +92,26 @@ Acceptance:
 
 - [x] T1 `lib/session-ledger.ts` + `tests/session-ledger.test.ts` (test-first):
       parse session JSONL entries into per-day usage for `provider === "minimax"`.
-      Route: delegated writer. Commit: `feat(ledger): agregar el parser del ledger local`.
+      Route: delegated writer. Commit: `feat(ledger): agregar el parser del ledger local` (`d6642c2`).
 - [x] T2 `lib/parse-remains.ts` + `tests/parse-remains.test.ts` (test-first):
       additive state classification (`ok` / `no-key` / `invalid-key` / `no-plan` /
       `unknown`) without changing the existing `parseRemains` contract.
-      Route: delegated writer. Commit: `feat(parse): clasificar el estado del plan`.
+      Route: delegated writer. Commit: `feat(parse): clasificar el estado del plan` (`78d9daa`).
 - [x] T3 `lib/details-view.ts` + `tests/details-view.test.ts` (test-first): the
       console-style renderer as a pure function over lines.
-      Route: delegated writer. Commit: `feat(details): agregar la vista de consumo`.
+      Route: delegated writer. Commit: `feat(details): agregar la vista de consumo` (`8c7f652`).
 - [x] T4 `lib/usage-panel.ts` + `tests/usage-panel.test.ts` (test-first): the
       Gentle-Shell-style panel renderer as a pure function over lines.
-      Route: delegated writer. Commit: `feat(usage): agregar el panel de cuota`.
+      Route: delegated writer. Commit: `feat(usage): agregar el panel de cuota` (`a0daff7`).
 - [x] T5 `extensions/minimax-usage-source.ts` + `lib/commands.ts` +
       `tests/minimax-usage-source.test.ts`: register both commands, wire the TUI
       components, guard the non-TUI modes and the `MINIMAX_DETAILS` switch.
       Route: delegated writer. Commit:
-      `feat(commands): registrar los comandos usage y details`.
+      `feat(commands): registrar los comandos usage y details` (`bfca824`).
 - [x] T6 `README.md`, `package.json` version bump to `0.5.0`, `scripts/preview-views.ts`
-      and the release checklist. Route: inline. Commit: `docs(readme): documentar los comandos` +
-      `chore(release): subir la versión a 0.5.0`.
+      and the release checklist. Route: inline. Commits:
+      `docs(readme): documentar los comandos` (`64588ac`) +
+      `chore(release): subir la versión a 0.5.0` (`4d6b03d`).
 - [ ] T7 Verification: `npm test`, `npm run typecheck`, `npm run lint`,
       `npm run format:check`, the text preview of both views, and the native review
       of the work-unit commits. Route: inline.
@@ -150,3 +151,10 @@ Acceptance:
   (`pi --extension ./extensions/minimax-usage-source.ts --mode rpc`), and the
   standalone status still answers `MM 5h 5% · week 23%`. `npm pack` produces
   14 files, 19.5 kB, version 0.5.0.
+- L11 (2026-10-22, parent): the eight work units landed on `dev` with the
+  user's approval: `d6642c2` ledger, `78d9daa` parse, `1df0b3c` ui, `a0daff7`
+  usage, `8c7f652` details, `bfca824` commands, `64588ac` docs, `4d6b03d`
+  release. The committed tree was re-verified after the hooks ran: 129 tests,
+  typecheck, eslint and prettier clean. Four units go over the 400 line review
+  budget (the ledger, the usage panel, the details view and the commands); the
+  overage was reported instead of shrinking the diff.
