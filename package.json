@@ -1,6 +1,6 @@
 {
   "name": "gentle-shell-minimax-usage",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "MiniMax Token Plan quota (5h and weekly) and local consumption view for Pi.",
   "type": "module",
   "license": "MIT",
