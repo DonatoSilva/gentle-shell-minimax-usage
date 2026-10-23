@@ -116,13 +116,32 @@ The env var is the escape hatch — that is exactly why the switch exists.
 ## Install
 
 ```sh
-pi install npm:gentle-shell-minimax-usage@0.5.0
+pi install npm:gentle-shell-minimax-usage
 ```
 
-Pin the version, or drop the `@0.5.0` to follow the latest release. `pi list`
-shows the configured packages, and `pi update gentle-shell-minimax-usage` moves
-to the next version. Pi keeps the package under its own npm directory, so there
-is no copy step and no path to maintain.
+Install **without a version**: Pi follows the `latest` tag and tells you when
+there is a new release. `pi list` shows the configured packages and
+`pi update --extensions` installs the pending ones. Pi keeps the package under
+its own npm directory, so there is no copy step and no path to maintain.
+
+To pin a version on purpose, add it:
+
+```sh
+pi install npm:gentle-shell-minimax-usage@<version>
+```
+
+A pinned version is fixed: Pi never announces an update for it and `pi update`
+does not move it.
+
+### Coming from 0.4.0
+
+If you installed the package with the pinned command of the old README, you are
+still on 0.4.0 and you will never get the update notice. Unpin it:
+
+```sh
+pi remove npm:gentle-shell-minimax-usage
+pi install npm:gentle-shell-minimax-usage
+```
 
 If Gentle Shell is not installed, the extension still works: see
 [Without Gentle Shell](#without-gentle-shell).
