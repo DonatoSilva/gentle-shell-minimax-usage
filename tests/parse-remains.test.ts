@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-import { parseRemains } from "../lib/parse-remains.ts";
+import { classifyRemains, parseRemains } from "../lib/parse-remains.ts";
 
 const NOW = 1_759_500_000_000;
 
@@ -17,6 +17,10 @@ function okBucket(): Record<string, unknown> {
 
 function bodyWith(bucket: Record<string, unknown>): unknown {
   return { model_remains: [bucket], base_resp: { status_code: 0, status_msg: "success" } };
+}
+
+function bodyWithStatus(statusCode: number, statusMsg = "success"): unknown {
+  return { model_remains: [], base_resp: { status_code: statusCode, status_msg: statusMsg } };
 }
 
 test("maps the real /remains payload to a ProviderUsage snapshot", () => {
@@ -103,4 +107,70 @@ test("clamps a negative remains_time to resetAt = now", () => {
   const usage = parseRemains(bodyWith({ ...okBucket(), remains_time: -5000 }), NOW);
 
   assert.equal(usage?.limits[0]?.windows[0]?.resetAt, NOW);
+});
+
+test("classifies a successful payload with a general bucket as ok", () => {
+  const body = fixture("remains-ok.json");
+  const state = classifyRemains(body, NOW);
+
+  assert.equal(state.kind, "ok");
+  assert.deepStrictEqual(state, { kind: "ok", usage: parseRemains(body, NOW) });
+});
+
+test("classifies a valid call without a general bucket as no-plan", () => {
+  assert.deepStrictEqual(classifyRemains(fixture("remains-no-general.json"), NOW), {
+    kind: "no-plan",
+  });
+});
+
+test("classifies status code 1004 as a missing credential", () => {
+  assert.deepStrictEqual(classifyRemains(bodyWithStatus(1004, "no api key supplied"), NOW), {
+    kind: "missing-credential",
+  });
+});
+
+test("classifies status code 2049 as an invalid credential", () => {
+  assert.deepStrictEqual(classifyRemains(fixture("remains-error.json"), NOW), {
+    kind: "invalid-credential",
+  });
+});
+
+test("classifies any other non-zero status code as unknown", () => {
+  for (const statusCode of [1001, 1002, 2013, 5000]) {
+    assert.deepStrictEqual(classifyRemains(bodyWithStatus(statusCode), NOW), { kind: "unknown" });
+  }
+});
+
+test("classifies a malformed body as unknown", () => {
+  const bodies: unknown[] = [
+    null,
+    [],
+    "oops",
+    42,
+    {},
+    { base_resp: "nope" },
+    { base_resp: { status_msg: "success" }, model_remains: [] },
+    { base_resp: { status_code: 0, status_msg: "success" }, model_remains: "nope" },
+  ];
+
+  for (const body of bodies) {
+    assert.deepStrictEqual(classifyRemains(body, NOW), { kind: "unknown" });
+  }
+});
+
+test("never reads the transport status as success: a zero status code is required", () => {
+  assert.deepStrictEqual(
+    classifyRemains({ model_remains: [okBucket()], base_resp: { status_msg: "success" } }, NOW),
+    { kind: "unknown" },
+  );
+});
+
+test("classifies a general bucket without usable windows as unknown", () => {
+  const bucket = okBucket();
+  delete bucket.remains_time;
+  delete bucket.current_interval_remaining_percent;
+  delete bucket.weekly_remains_time;
+  delete bucket.current_weekly_remaining_percent;
+
+  assert.deepStrictEqual(classifyRemains(bodyWith(bucket), NOW), { kind: "unknown" });
 });

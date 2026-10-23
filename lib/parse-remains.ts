@@ -26,6 +26,18 @@ const BUCKET = "general";
 const FIVE_HOURS_S = 5 * 60 * 60;
 const ONE_WEEK_S = 7 * 24 * 60 * 60;
 
+// MiniMax answers every `/remains` call with HTTP 200; the real outcome lives
+// in `base_resp.status_code`.
+const STATUS_MISSING_CREDENTIAL = 1004;
+const STATUS_INVALID_CREDENTIAL = 2049;
+
+export type RemainsState =
+  | { kind: "ok"; usage: ProviderUsage }
+  | { kind: "missing-credential" }
+  | { kind: "invalid-credential" }
+  | { kind: "no-plan" }
+  | { kind: "unknown" };
+
 export function parseRemains(body: unknown, now: number): ProviderUsage | undefined {
   if (!isRecord(body) || !isSuccess(body.base_resp)) return undefined;
   if (!Array.isArray(body.model_remains)) return undefined;
@@ -63,6 +75,27 @@ export function parseRemains(body: unknown, now: number): ProviderUsage | undefi
     })),
     fetchedAt: now,
   };
+}
+
+// Additive classification of the same payload: it never changes what
+// `parseRemains` returns, it only names the state the account is in.
+export function classifyRemains(body: unknown, now: number): RemainsState {
+  if (!isRecord(body) || !isRecord(body.base_resp)) return { kind: "unknown" };
+
+  const statusCode = body.base_resp.status_code;
+  if (statusCode === STATUS_MISSING_CREDENTIAL) return { kind: "missing-credential" };
+  if (statusCode === STATUS_INVALID_CREDENTIAL) return { kind: "invalid-credential" };
+  if (!isSuccess(body.base_resp)) return { kind: "unknown" };
+  if (!Array.isArray(body.model_remains)) return { kind: "unknown" };
+
+  const hasGeneral = body.model_remains.some(
+    (entry) => isRecord(entry) && entry.model_name === BUCKET,
+  );
+  if (!hasGeneral) return { kind: "no-plan" };
+
+  // A `general` bucket without usable windows is a broken payload, not a plan.
+  const usage = parseRemains(body, now);
+  return usage ? { kind: "ok", usage } : { kind: "unknown" };
 }
 
 function toWindow(
