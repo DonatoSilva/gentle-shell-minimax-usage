@@ -166,7 +166,7 @@ function render(summary: LedgerSummary = SUMMARY, width: number = WIDTH): string
 }
 
 function renderTab(
-  tab: "overview" | "trend" | "heatmap" | "models",
+  tab: "overview" | "trend" | "heatmap",
   options: { width?: number; trendRows?: number; selectedDay?: number } = {},
 ): string[] {
   return renderDetailsView(SUMMARY, plainTheme(), options.width ?? WIDTH, {
@@ -245,13 +245,12 @@ function cellsOf(row: string): string[] {
   return cells;
 }
 
-test("draws the four tabs in the tab bar", () => {
+test("draws the three tabs in the tab bar", () => {
   const bar = renderTab("overview")[2] ?? "";
 
   assert.ok(bar.includes("Overview"), bar);
   assert.ok(bar.includes("Trend"), bar);
   assert.ok(bar.includes("Heatmap"), bar);
-  assert.ok(bar.includes("Models"), bar);
   // Only the active tab is bracketed, and the tabs are separated by two spaces.
   assert.ok(bar.includes("[Overview]  Trend"), bar);
   assert.equal(bar.includes("[Trend]"), false);
@@ -281,13 +280,12 @@ test("paints only the content of the active tab", () => {
   const overview = renderTab("overview").join("\n");
   const trend = renderTab("trend").join("\n");
   const heatmap = renderTab("heatmap").join("\n");
-  const models = renderTab("models").join("\n");
 
-  // The overview is the headline numbers, nothing else.
+  // The overview is the headline numbers plus the models, nothing else.
   assert.ok(overview.includes("LLM"));
+  assert.ok(overview.includes("MiniMax-M3.1-Flash-Preview"));
   assert.equal(overview.includes("▌"), false);
   assert.equal(overview.includes("Mon"), false);
-  assert.equal(overview.includes("MiniMax-M3"), false);
 
   // The trend is the chart alone.
   assert.ok(trend.includes("▌"));
@@ -298,11 +296,6 @@ test("paints only the content of the active tab", () => {
   assert.ok(heatmap.includes("Mon"));
   assert.equal(heatmap.includes("LLM"), false);
   assert.equal(heatmap.includes("▌"), false);
-
-  // The models are the rows of the models alone.
-  assert.ok(models.includes("MiniMax-M3.1-Flash-Preview"));
-  assert.equal(models.includes("LLM"), false);
-  assert.equal(models.includes("▌"), false);
 });
 
 test("draws the headline metrics in four columns", () => {
@@ -647,7 +640,7 @@ test("draws the days outside the calendar as spaces, never as cells", () => {
 });
 
 test("reports what was spent per model, with a bar per model", () => {
-  const lines = renderTab("models");
+  const lines = renderTab("overview");
   const flash = lineWith(lines, "MiniMax-M3.1-Flash-Preview");
   const other = lineWith(lines, "MiniMax-M3 ");
 
@@ -655,6 +648,14 @@ test("reports what was spent per model, with a bar per model", () => {
   assert.ok(flash.includes("▰"), flash);
   assert.ok(other.includes("18%"), other);
   assert.ok(other.includes("▱"), other);
+});
+
+test("the overview also shows what was spent per model", () => {
+  const lines = renderTab("overview");
+  const flash = lineWith(lines, "MiniMax-M3.1-Flash-Preview");
+
+  assert.ok(flash.includes("82%"), flash);
+  assert.ok(flash.includes("▰"), flash);
 });
 
 test("draws the hints line at the bottom", () => {
@@ -817,5 +818,5 @@ test("falls back to the days of the window when there is no history", () => {
 });
 
 test("every tab of the bar is reachable by its name", () => {
-  assert.deepStrictEqual([...DETAILS_TABS], ["overview", "trend", "heatmap", "models"]);
+  assert.deepStrictEqual([...DETAILS_TABS], ["overview", "trend", "heatmap"]);
 });

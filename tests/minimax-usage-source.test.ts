@@ -585,21 +585,23 @@ test("the details view switches tabs and scrolls", async () => {
     component?.handleInput?.("\x1b[Z");
     assert.ok((component?.render(WIDTH) ?? []).join("\n").includes("▌"));
 
-    // The keys 1 to 4 jump straight to a tab: 4 is the models tab.
-    component?.handleInput?.("4");
-    const modelsTab = (component?.render(WIDTH) ?? []).join("\n");
-    assert.ok(modelsTab.includes("MiniMax-M3-0"), modelsTab);
+    // The keys 1 to 3 jump straight to a tab: 3 is the heatmap tab.
+    component?.handleInput?.("3");
+    const heatmapTab = (component?.render(WIDTH) ?? []).join("\n");
+    assert.ok(heatmapTab.includes("Mon"), heatmapTab);
 
-    // The models tab is taller than the screen, so it scrolls.
-    const first = component?.render(WIDTH) ?? [];
-    component?.handleInput?.("\x1b[B");
-    const scrolled = component?.render(WIDTH) ?? [];
+    // A terminal shorter than the view: the view scrolls inside it.
+    const { tui: smallTui } = fakeTui(6);
+    const small = factories[0]?.(smallTui, theme, {}, () => {});
+    const first = small?.render(WIDTH) ?? [];
+    small?.handleInput?.("\x1b[B");
+    const scrolled = small?.render(WIDTH) ?? [];
 
     assert.notDeepStrictEqual(first, scrolled);
     assert.ok(scrolled.length > 0);
 
-    component?.handleInput?.("\x1b[A");
-    assert.deepStrictEqual(component?.render(WIDTH), first);
+    small?.handleInput?.("\x1b[A");
+    assert.deepStrictEqual(small?.render(WIDTH), first);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -680,6 +682,22 @@ test("the arrows move the selected day and never the tab", async () => {
     component?.handleInput?.("\x1b[C");
     const back = (component?.render(WIDTH) ?? []).join("\n");
     assert.ok(detailOf(back).includes("Flash"), detailOf(back));
+
+    // The kitty encoding of the arrows is the one a terminal with the kitty
+    // protocol sends: `CSI 1 ; modifiers final`.
+    component?.handleInput?.("\x1b[1;1D");
+    const kitty = (component?.render(WIDTH) ?? []).join("\n");
+    assert.equal(detailOf(kitty).includes("Flash"), false, detailOf(kitty));
+    component?.handleInput?.("\x1b[1;1C");
+    assert.ok(
+      detailOf((component?.render(WIDTH) ?? []).join("\n")).includes("Flash"),
+      detailOf((component?.render(WIDTH) ?? []).join("\n")),
+    );
+
+    // The kitty encoding of the tab switches tabs too.
+    component?.handleInput?.("\x1b[9u");
+    const nextTab = (component?.render(WIDTH) ?? []).join("\n");
+    assert.ok(nextTab.includes("[Heatmap]"), nextTab);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
