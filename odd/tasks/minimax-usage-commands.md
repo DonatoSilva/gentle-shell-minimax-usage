@@ -115,7 +115,7 @@ Acceptance:
 - [x] T7 Verification: `npm test` (129/129), `npm run typecheck`, `npm run lint`,
       `npm run format:check`, the text preview of both views, the load in a real
       Pi and the native assessment of the committed range.
-      Route: inline.
+      Route: inline. Native review: candidate-scoped decline, see L13.
 
 ## Log
 
@@ -161,8 +161,26 @@ Acceptance:
   overage was reported instead of shrinking the diff.
 - L12 (2026-10-22, parent): the native assessment of the committed range
   (`baseRef fc325c1`, 19 paths, 3085 changed lines) answered `risk: medium`,
-  `reviewDue: false`, `reviewDueReason: under_budget`: the controller does not
-  ask for a native review of this candidate, so none was started. The plan it
-  returned keeps the writer self-verification (129 tests, typecheck, eslint,
-  prettier, the preview and the load in a real Pi) and adds no independent
-  verifier, because no Task Size high-risk item was escalated.
+  `reviewDue: false`, `reviewDueReason: under_budget`, so no native review was
+  started from that route. The plan it returned keeps the writer
+  self-verification and adds no independent verifier, because no Task Size
+  high-risk item was escalated.
+- L13 (2026-10-23, parent): a later `inspect` on the controller's own base
+  (`4378553`, the commit before the tooling work) answered `status: ready`,
+  `action: start` for the target `sha256:5b09b43f…` (33 paths, 6777 changed
+  lines, `risk_level: high` with the evidence "an executable permission change
+  in .husky/commit-msg"), and the START was attempted with the four pertinent
+  lenses. The eligible interactive host resolved the consent and the human
+  **declined the review of this candidate**:
+  `outcome: consent-declined-this-candidate`, `lineage_created: false`,
+  `mutation_performed: false`, `mutation_outcome: none`.
+  - Disposition: **decline with candidate scope**, not a kill switch. The
+    consent is not retried for this target and no lineage is burned.
+  - `nativeReviewOutcome` stays `unknown`: there is no lineage and no consumed
+    candidate, so closure by review cannot be derived. The work is NOT closed
+    by a review; it stands on the writer self-verification (129 tests,
+    typecheck, eslint, prettier, the preview and the load in a real Pi).
+  - The previous declines of the tooling work (`sha256:bda49b2f…` and
+    `sha256:9c6d1a70…`, base `4378553`) were also candidate-scoped and
+    explicitly limited to that change: a review is due for materially new
+    work, which is why this candidate was started.
