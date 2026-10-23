@@ -12,7 +12,7 @@ const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
 const WIDTH = 72;
 
-const TITLE = "✿ MiniMax";
+const TITLE = "🐙 MiniMax";
 const HINTS = "r refresh   esc close";
 const FILLED_CELL = "▰";
 const EMPTY_CELL = "▱";
@@ -29,6 +29,9 @@ const ANSI_THEME: ViewTheme = {
   warning: (text) => `\x1b[33m${text}\x1b[0m`,
   error: (text) => `\x1b[31m${text}\x1b[0m`,
   border: (text) => `\x1b[90m${text}\x1b[0m`,
+  heat: (level, text) => `\x1b[9${Math.min(level, 3)}m${text}\x1b[0m`,
+  bold: (text) => `\x1b[1m${text}\x1b[0m`,
+  model: (index, text) => `\x1b[9${Math.min(index, 3)}m${text}\x1b[0m`,
 };
 
 interface WindowFixture {
@@ -102,6 +105,13 @@ test("frames the panel with the title and the hints row", () => {
     lines.join("\n"),
   );
   assert.ok(lines.at(-1)?.startsWith("╰"), lines.at(-1));
+});
+
+test("titles the frame with the MiniMax octopus, not the shell flower", () => {
+  const lines = renderUsagePanel(okState([]), plainTheme(), WIDTH, NOW);
+
+  assert.ok(lines[0]?.includes("🐙 MiniMax"), lines[0]);
+  assert.equal(lines[0]?.includes("✿"), false, lines[0]);
 });
 
 test("pads the window names to the same width", () => {

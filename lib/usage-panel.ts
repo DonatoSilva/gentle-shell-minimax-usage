@@ -12,11 +12,12 @@
 // import: `gentle-pi` stays an optional dependency of the published package.
 
 import type { ProviderUsage, RemainsState, UsageWindow } from "./parse-remains.ts";
-import type { ViewTheme } from "./view-theme.ts";
-import { fitVisible, frameLines } from "./view-frame.ts";
+import { plainTheme, type ViewTheme } from "./view-theme.ts";
+import { fitVisible, frameLines, visibleWidth } from "./view-frame.ts";
 
 const PROVIDER = "minimax";
-const TITLE = "✿ MiniMax";
+// The MiniMax mark: the octopus, not the Gentle Shell flower.
+const TITLE = "🐙 MiniMax";
 const HINTS = "r refresh   esc close";
 const METER_CELLS = 16;
 /** The gap between the padded name of a window and its meter. */
@@ -49,6 +50,16 @@ export function renderUsagePanel(
   const body = bodyLines(state, theme, now).map((line) => fitVisible(line, content));
   const framed = frameLines(body, theme, width, { title: TITLE, hints: HINTS });
   return framed.map((line) => fitVisible(line, width));
+}
+
+/**
+ * The natural width of the panel body: the widest row it would draw, without
+ * the frame. The caller uses it to float the panel at the size of its
+ * content instead of stretching it over the whole terminal.
+ */
+export function usagePanelBodyWidth(state: RemainsState, now: number): number {
+  const body = bodyLines(state, plainTheme(), now);
+  return body.reduce((widest, line) => Math.max(widest, visibleWidth(line)), 0);
 }
 
 /** The rows of the panel, one per state. */

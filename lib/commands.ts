@@ -11,7 +11,18 @@
 // plan endpoint, the details command reads the local session ledger and
 // never sends a single byte of it anywhere.
 
-import { formatTokens, renderDetailsView } from "./details-view.ts";
+import {
+  DEFAULT_TREND_ROWS,
+  DETAILS_CONTENT_ROW,
+  DETAILS_TABS,
+  HEATMAP_ROWS,
+  formatTokens,
+  heatmapSelectionAt,
+  renderDetailsView,
+  trendChartTop,
+  trendDayAt,
+  type DetailsTab,
+} from "./details-view.ts";
 import { fetchRemainsState, type FetchFn } from "./fetch-remains.ts";
 import type { RemainsState } from "./parse-remains.ts";
 import {
@@ -21,7 +32,7 @@ import {
   type LedgerSummary,
 } from "./session-ledger.ts";
 import { resolveApiKey } from "./standalone-status.ts";
-import { renderUsagePanel } from "./usage-panel.ts";
+import { renderUsagePanel, usagePanelBodyWidth } from "./usage-panel.ts";
 import type { ViewTheme } from "./view-theme.ts";
 
 export const USAGE_COMMAND = "minimax:usage";
@@ -35,25 +46,76 @@ export const DETAILS_DESCRIPTION =
 const PROVIDER = "minimax";
 const WINDOW_DAYS = 30;
 
+// The quota panel floats over the transcript: it is as wide as its content.
+// The details view floats too, but it takes the whole screen: the overlay was
+// never the problem, the height cap of the earlier attempt was.
+const OVERLAY_MARGIN = 1;
+const OVERLAY_MAX_HEIGHT = "80%";
+/** The details view floats at the full size of the terminal. */
+const DETAILS_OVERLAY_WIDTH = "100%";
+const DETAILS_OVERLAY_MAX_HEIGHT = "100%";
+const DETAILS_OVERLAY_MARGIN = 0;
+/** Lines of the details view that fit on the screen; the rest is scrolled. */
+const VISIBLE_LINES = 30;
+
 // The command owns its own abort bound: a stalled request must not keep the
 // view from opening. The shell applies the same bound to its own fetch.
 const COMMAND_TIMEOUT_MS = 10_000;
+
+/**
+ * The theme tokens the models cycle through: one color per model, the same
+ * one everywhere the model appears.
+ */
+const MODEL_COLORS = [
+  "accent",
+  "warning",
+  "error",
+  "success",
+  "customMessageLabel",
+  "mdLink",
+  "mdHeading",
+  "toolOutput",
+  "thinkingText",
+  "borderAccent",
+];
 
 /** A terminal component: it paints lines and, optionally, takes input. */
 export interface CustomComponent {
   render(width: number): string[];
   invalidate(): void;
   handleInput?(data: string): void;
+  /**
+   * A mouse event of the component. Pi only routes the mouse to a component
+   * in its alt-screen (fullscreen) mode: in the regular mode the terminal
+   * keeps the mouse, so the event may never arrive.
+   */
+  handleMouse?(event: { type: string; button: string; x: number; y: number }): unknown;
 }
 
 /** The terminal handle of a custom component: it asks for a repaint. */
 export interface TuiLike {
   requestRender(): void;
+  /**
+   * The size of the terminal, when the handle carries it. It is optional:
+   * without it the views cannot know how tall the screen is.
+   */
+  terminal?: { columns: number; rows: number };
 }
 
 /** The active Pi theme: it paints a text with one of its color tokens. */
 export interface ThemeLike {
   fg(color: string, text: string): string;
+  style?(text: string, options: { fg?: string; bold?: boolean }): string;
+}
+
+/** The overlay options of a floating view. */
+export interface OverlayOptionsLike {
+  /** Width in columns, or a percentage of the terminal width. */
+  width?: number | string;
+  /** Maximum height in rows, or a percentage of the terminal height. */
+  maxHeight?: number | string;
+  /** Margin from the terminal edges. */
+  margin?: number;
 }
 
 /** The slice of Pi's UI API the commands use. */
@@ -65,6 +127,10 @@ export interface UiLike {
       keybindings: unknown,
       done: (result: T) => void,
     ) => CustomComponent,
+    options?: {
+      overlay?: boolean;
+      overlayOptions?: OverlayOptionsLike;
+    },
   ): Promise<T>;
   notify(message: string, level?: string): void;
 }
@@ -136,37 +202,55 @@ async function runUsage(rt: CommandRuntime, ctx: CommandCtx): Promise<void> {
   const ui = ctx.ui;
   if (!ui) return;
 
-  await ui.custom<void>((tui, theme, _keybindings, done) => {
-    let current = state;
-    const view = viewThemeOf(theme);
+  // The panel floats at the size of its content: the frame adds the two
+  // columns of padding on each side of the body.
+  const width = usagePanelBodyWidth(state, rt.now()) + 4;
 
-    return {
-      render(width: number): string[] {
-        return renderUsagePanel(current, view, width, rt.now());
-      },
-      invalidate(): void {
-        // The panel is rebuilt on every render, there is nothing to cache.
-      },
-      handleInput(data: string): void {
-        if (data === "r") {
-          void fetchState(rt).then((next) => {
-            current = next;
-            tui.requestRender();
-          });
-          return;
-        }
-        if (isCloseKey(data)) done(undefined);
-      },
-    };
-  });
+  await ui.custom<void>(
+    (tui, theme, _keybindings, done) => {
+      let current = state;
+      const view = viewThemeOf(theme);
+
+      return {
+        render(width: number): string[] {
+          return renderUsagePanel(current, view, width, rt.now());
+        },
+        invalidate(): void {
+          // The panel is rebuilt on every render, there is nothing to cache.
+        },
+        handleInput(data: string): void {
+          if (data === "r") {
+            void fetchState(rt).then((next) => {
+              current = next;
+              tui.requestRender();
+            });
+            return;
+          }
+          if (isCloseKey(data)) done(undefined);
+        },
+      };
+    },
+    {
+      overlay: true,
+      overlayOptions: { width, maxHeight: OVERLAY_MAX_HEIGHT, margin: OVERLAY_MARGIN },
+    },
+  );
 }
 
 /**
  * `/minimax:details`: the console shape of the local consumption.
  *
+ * The view FLOATS over the transcript at the full size of the terminal: the
+ * overlay takes the whole width and the whole height, and the component pads
+ * its lines with blanks until it reaches the bottom of the screen. The
+ * transcript stays intact underneath when the view closes.
+ *
  * The ledger is read before the view opens, `r` reads it again and repaints,
  * `esc` or `q` closes the view. `MINIMAX_DETAILS=off` disables the ledger
  * entirely: nothing is read and nothing is painted.
+ *
+ * The arrows move the selected day of the trend, the tabs move with `Tab`,
+ * `Shift+Tab` and the keys `1` to `4`.
  */
 async function runDetails(rt: CommandRuntime, ctx: CommandCtx): Promise<void> {
   if (isLedgerDisabled(rt.env)) {
@@ -184,27 +268,153 @@ async function runDetails(rt: CommandRuntime, ctx: CommandCtx): Promise<void> {
   const ui = ctx.ui;
   if (!ui) return;
 
-  await ui.custom<void>((tui, theme, _keybindings, done) => {
-    let current = summary;
-    const view = viewThemeOf(theme);
+  await ui.custom<void>(
+    (tui, theme, _keybindings, done) => {
+      let current = summary;
+      let tab: DetailsTab = "overview";
+      // The selected day of the trend: the index inside the window. It is
+      // undefined while the renderer uses the last day of the window.
+      let selectedDay: number | undefined;
+      let offset = 0;
+      let lastWidth = 80;
+      const view = viewThemeOf(theme);
 
-    return {
-      render(width: number): string[] {
-        return renderDetailsView(current, view, width, { now: rt.now() });
+      return {
+        render(width: number): string[] {
+          lastWidth = width;
+          // The view is taller than the screen when it has to be: the slice is
+          // what is painted, and the offset scrolls through the rest of it.
+          const lines = renderDetailsView(current, view, width, {
+            now: rt.now(),
+            tab,
+            selectedDay,
+          });
+          const rows = tui.terminal?.rows;
+          const visible = rows ?? VISIBLE_LINES;
+          const maxOffset = Math.max(0, lines.length - visible);
+          if (offset > maxOffset) offset = maxOffset;
+          const slice = lines.slice(offset, offset + visible);
+          // The window fills the height of the screen: the content is padded
+          // with blank lines until it reaches the bottom.
+          const padding = Math.max(0, (rows ?? 0) - slice.length);
+          return [...slice, ...Array.from({ length: padding }, () => "")];
+        },
+        invalidate(): void {
+          // The view is rebuilt on every render, there is nothing to cache.
+        },
+        handleInput(data: string): void {
+          if (data === "r") {
+            current = readLedger(rt);
+            offset = 0;
+            tui.requestRender();
+            return;
+          }
+          // The arrows move the selected day: the tabs keep `Tab`,
+          // `Shift+Tab` and the keys `1` to `4`.
+          const day = movedDay(selectedDay, data, current.windowDays);
+          if (day !== undefined) {
+            selectedDay = day;
+            tui.requestRender();
+            return;
+          }
+          const next = nextTab(tab, data);
+          if (next !== undefined) {
+            tab = next;
+            offset = 0;
+            tui.requestRender();
+            return;
+          }
+          if (isScrollUp(data)) {
+            offset = Math.max(0, offset - 1);
+            tui.requestRender();
+            return;
+          }
+          if (isScrollDown(data)) {
+            offset += 1;
+            tui.requestRender();
+            return;
+          }
+          if (isCloseKey(data)) done(undefined);
+        },
+        handleMouse(event: { type: string; button: string; x: number; y: number }): unknown {
+          if (event.type !== "click" || event.button !== "left") return undefined;
+          // The row of the click inside the content of the tab.
+          const row = offset + event.y - DETAILS_CONTENT_ROW;
+          if (tab === "trend") {
+            // The chart lives under the title of the section and the legend
+            // of the models, and it is as tall as the trend rows.
+            const chartRow = row - trendChartTop(current, lastWidth, { now: rt.now() });
+            if (chartRow < 0 || chartRow >= DEFAULT_TREND_ROWS) return undefined;
+            const day = trendDayAt(event.x, lastWidth, current.windowDays);
+            if (day === undefined) return undefined;
+            selectedDay = day;
+            tui.requestRender();
+            return { handled: true };
+          }
+          if (tab === "heatmap") {
+            // The calendar is the grid of weekdays: the click lands on the
+            // day of its cell.
+            if (row < 0 || row >= HEATMAP_ROWS) return undefined;
+            const day = heatmapSelectionAt(event.x, row, lastWidth, current, rt.now());
+            if (day === undefined) return undefined;
+            selectedDay = day;
+            tui.requestRender();
+            return { handled: true };
+          }
+          return undefined;
+        },
+      };
+    },
+    {
+      overlay: true,
+      overlayOptions: {
+        width: DETAILS_OVERLAY_WIDTH,
+        maxHeight: DETAILS_OVERLAY_MAX_HEIGHT,
+        margin: DETAILS_OVERLAY_MARGIN,
       },
-      invalidate(): void {
-        // The view is rebuilt on every render, there is nothing to cache.
-      },
-      handleInput(data: string): void {
-        if (data === "r") {
-          current = readLedger(rt);
-          tui.requestRender();
-          return;
-        }
-        if (isCloseKey(data)) done(undefined);
-      },
-    };
-  });
+    },
+  );
+}
+
+/**
+ * The tab a key asks for: `Tab` goes to the next one, `Shift+Tab` to the
+ * previous one, and the keys `1` to `4` jump straight to a tab. Both ends
+ * wrap around.
+ *
+ * The arrows never change the tab: they move the selected day of the trend.
+ */
+function nextTab(tab: DetailsTab, data: string): DetailsTab | undefined {
+  const index = DETAILS_TABS.indexOf(tab);
+  if (data === "\t") {
+    return DETAILS_TABS[(index + 1) % DETAILS_TABS.length] as DetailsTab;
+  }
+  if (data === "\x1b[Z") {
+    return DETAILS_TABS[(index - 1 + DETAILS_TABS.length) % DETAILS_TABS.length] as DetailsTab;
+  }
+  const digit = Number(data);
+  if (Number.isInteger(digit) && digit >= 1 && digit <= DETAILS_TABS.length) {
+    return DETAILS_TABS[digit - 1] as DetailsTab;
+  }
+  return undefined;
+}
+
+/**
+ * The day the arrows ask for: the left one goes to the day before and the
+ * right one to the day after, clamped to the window.
+ *
+ * The selection starts at the last day of the window, the one the renderer
+ * uses when no day is given.
+ */
+function movedDay(
+  selected: number | undefined,
+  data: string,
+  windowDays: number,
+): number | undefined {
+  const last = Math.max(0, windowDays - 1);
+  const current = selected ?? last;
+  if (data === "\x1b[D") return Math.max(0, current - 1);
+  if (data === "\x1b[C") return Math.min(last, current + 1);
+  return undefined;
 }
 
 /**
@@ -291,12 +501,40 @@ function viewThemeOf(theme: ThemeLike): ViewTheme {
     warning: (text) => theme.fg("warning", text),
     error: (text) => theme.fg("error", text),
     border: (text) => theme.fg("border", text),
+    // The active tab of the tab bar is bold on top of its accent color.
+    bold: (text) => theme.style?.(text, { bold: true }) ?? text,
+    // The heat scale: empty cells fade to the border color and the busiest
+    // ones burn in the accent, the way the shell paints its own heatmap.
+    heat: (level, text) => {
+      if (level <= 0) return theme.fg("border", text);
+      if (level === 1) return theme.fg("muted", text);
+      if (level === 2) return theme.fg("accent", text);
+      return theme.style?.(text, { fg: "accent", bold: true }) ?? theme.fg("accent", text);
+    },
+    // One color per model: the palette of the theme is cycled by the index
+    // of the model in the ranking of the window.
+    model: (index, text) => theme.fg(modelColor(index), text),
   };
+}
+
+/** The theme token of a model: the palette of the theme is cycled. */
+function modelColor(index: number): string {
+  const size = MODEL_COLORS.length;
+  return MODEL_COLORS[((index % size) + size) % size] ?? "accent";
 }
 
 /** `esc` and `q` close the view. */
 function isCloseKey(data: string): boolean {
   return data === "q" || isEscape(data);
+}
+
+/** The scroll keys: the arrows, as Pi delivers them, and `j`/`k`. */
+function isScrollUp(data: string): boolean {
+  return data === "\x1b[A" || data === "k";
+}
+
+function isScrollDown(data: string): boolean {
+  return data === "\x1b[B" || data === "j";
 }
 
 /**

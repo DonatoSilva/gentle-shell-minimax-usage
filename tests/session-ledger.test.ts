@@ -11,6 +11,7 @@ const NOW = Date.UTC(2026, 9, 22, 12, 0, 0); // 2026-10-22T12:00:00Z
 function assistantEntry(options: {
   timestamp: string;
   provider?: string;
+  model?: string;
   usage?: unknown;
   role?: string;
   type?: string;
@@ -21,7 +22,7 @@ function assistantEntry(options: {
     message: {
       role: options.role ?? "assistant",
       provider: options.provider ?? "minimax",
-      model: "MiniMax-M2",
+      model: options.model ?? "MiniMax-M2",
       usage: options.usage ?? {},
     },
   };
@@ -52,6 +53,7 @@ test("sums the assistant messages that share a local day", () => {
       totalTokens: 6400,
       cost: 0.75,
       messages: 2,
+      models: [{ model: "MiniMax-M2", totalTokens: 6400, cost: 0.75, messages: 2 }],
     },
   ]);
   assert.deepStrictEqual(summary.totals, {
@@ -92,6 +94,7 @@ test("ignores entries that are not assistant messages of the provider", () => {
   );
 
   assert.deepStrictEqual(summary.days, []);
+  assert.deepStrictEqual(summary.history, []);
   assert.deepStrictEqual(summary.totals, {
     input: 0,
     output: 0,
@@ -169,6 +172,101 @@ test("sums the token fields instead of trusting usage.totalTokens", () => {
   );
 
   assert.equal(summary.totals.totalTokens, 100);
+});
+
+test("keeps the whole history of the ledger, not only the window", () => {
+  const summary = summarizeUsage(
+    [
+      assistantEntry({
+        timestamp: "2026-06-01T10:00:00Z",
+        usage: { input: 500, output: 0, cacheRead: 0, cacheWrite: 0 },
+      }),
+      assistantEntry({
+        timestamp: "2026-06-02T10:00:00Z",
+        usage: { input: 700, output: 0, cacheRead: 0, cacheWrite: 0 },
+      }),
+      assistantEntry({
+        timestamp: "2026-10-20T10:00:00Z",
+        usage: { input: 100, output: 0, cacheRead: 0, cacheWrite: 0 },
+      }),
+    ],
+    { now: NOW, windowDays: 30, tzOffsetMinutes: 0 },
+  );
+
+  // The window keeps its own days, the ones of the aggregates.
+  assert.deepStrictEqual(
+    summary.days.map((day) => day.day),
+    ["2026-10-20"],
+  );
+  assert.equal(summary.totals.input, 100);
+  assert.equal(summary.activeDays, 1);
+
+  // The history keeps every day that carries usage, ascending, the ones of
+  // the window included.
+  assert.deepStrictEqual(
+    summary.history.map((day) => day.day),
+    ["2026-06-01", "2026-06-02", "2026-10-20"],
+  );
+  assert.deepStrictEqual(summary.history[0], {
+    day: "2026-06-01",
+    input: 500,
+    output: 0,
+    cacheRead: 0,
+    cacheWrite: 0,
+    totalTokens: 500,
+    cost: 0,
+    messages: 1,
+    models: [{ model: "MiniMax-M2", totalTokens: 500, cost: 0, messages: 1 }],
+  });
+  // The models stay the ones of the window.
+  assert.deepStrictEqual(
+    summary.models.map((model) => model.totalTokens),
+    [100],
+  );
+});
+
+test("buckets the models inside every day, busiest first", () => {
+  const summary = summarizeUsage(
+    [
+      assistantEntry({
+        timestamp: "2026-10-20T10:00:00Z",
+        model: "MiniMax-M3",
+        usage: { input: 100, output: 0, cacheRead: 0, cacheWrite: 0, cost: { total: 0.1 } },
+      }),
+      assistantEntry({
+        timestamp: "2026-10-20T11:00:00Z",
+        model: "MiniMax-M3.1-Flash-Preview",
+        usage: { input: 900, output: 0, cacheRead: 0, cacheWrite: 0, cost: { total: 0.9 } },
+      }),
+      assistantEntry({
+        timestamp: "2026-10-21T10:00:00Z",
+        model: "MiniMax-M3",
+        usage: { input: 50, output: 0, cacheRead: 0, cacheWrite: 0 },
+      }),
+    ],
+    { now: NOW, tzOffsetMinutes: 0 },
+  );
+
+  // Every day keeps the matrix of its models, the busiest one first.
+  assert.deepStrictEqual(summary.days[0]?.models, [
+    { model: "MiniMax-M3.1-Flash-Preview", totalTokens: 900, cost: 0.9, messages: 1 },
+    { model: "MiniMax-M3", totalTokens: 100, cost: 0.1, messages: 1 },
+  ]);
+  assert.deepStrictEqual(summary.days[1]?.models, [
+    { model: "MiniMax-M3", totalTokens: 50, cost: 0, messages: 1 },
+  ]);
+
+  // The aggregates of the window do not change: the matrix is additive.
+  assert.equal(summary.totals.totalTokens, 1050);
+  assert.equal(summary.totals.cost, 1);
+  assert.equal(summary.activeDays, 2);
+  assert.equal(summary.cacheHitRate, 0);
+  assert.equal(summary.dailyAverage, 1050 / 30);
+  assert.equal(summary.peakDay?.totalTokens, 1000);
+  assert.deepStrictEqual(
+    summary.models.map((model) => model.model),
+    ["MiniMax-M3.1-Flash-Preview", "MiniMax-M3"],
+  );
 });
 
 test("keeps only the days inside the trailing window", () => {
