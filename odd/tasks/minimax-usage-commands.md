@@ -320,6 +320,29 @@ Acceptance:
   - Why: a vertical legend under the chart has to be read backwards, after the
     bars it explains; and the heatmap was the only tab without the detail of
     the day.
+- L25 (user): "ajuste antes de publicar en el overview pon tambien los modelossi quias el tabde models"
+  - What changed: the `Overview` tab also carries the models, the same rows
+    as the `Models` tab, between the headline numbers and the cumulative
+    footer. The first tab is the one people look at, so it holds the whole
+    picture. The tab isolation test changed with it: the overview is no longer
+    "the headline numbers and nothing else".
+- L26 (user): "te dije que al poner los modelos de primera no era necesario la tab de models que pones"
+  - What changed: the `Models` tab is GONE. With the models already in the
+    Overview it was a duplicate of the same rows, so the bar is now
+    `Overview`, `Trend`, `Heatmap` and the digit keys are `1` to `3`. The
+    models rows moved nowhere: they are the ones the Overview paints. The
+    scroll test now uses a short terminal instead of the tall models tab.
+- L27 (user): "esto no funcionacdentro de minimax:details no esta funcionando, o quitalo a arreclaro ←→ day"
+  - What changed: the keys were matched as RAW BYTES, and Pi asks the terminal
+    for the kitty keyboard protocol (flags 7: disambiguate plus event types),
+    so the arrows arrived as `CSI 1 ; modifiers D` (`\x1b[1;1D`) and the tab
+    as `CSI 9 u` (`\x1b[9u`): the views were DEAF to them. A new
+    `lib/view-keys.ts` reads both encodings (the legacy CSI and SS3 forms and
+    the kitty ones) and every key of the views goes through it. The overview
+    also paints the detail of the selected day, so the arrows always change
+    something visible.
+  - Why: the arrows and the tab never arrived: the bug was the encoding, not
+    the feature.
 - L24 (2026-10-23, parent): the unit landed delegated and the parent verified
   it: `npm test` 169/169, typecheck, eslint and prettier clean; the previews
   paint the legend before the chart (horizontal, wrapping when it does not

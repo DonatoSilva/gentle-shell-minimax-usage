@@ -20,7 +20,7 @@ import type { ViewTheme } from "./view-theme.ts";
 import { fitVisible, padVisible, visibleWidth } from "./view-frame.ts";
 
 /** The tabs of the details view, in the order of the tab bar. */
-export const DETAILS_TABS = ["overview", "trend", "heatmap", "models"] as const;
+export const DETAILS_TABS = ["overview", "trend", "heatmap"] as const;
 
 /** The tab the details view paints. */
 export type DetailsTab = (typeof DETAILS_TABS)[number];
@@ -58,7 +58,6 @@ const TAB_LABELS: Record<DetailsTab, string> = {
   overview: "Overview",
   trend: "Trend",
   heatmap: "Heatmap",
-  models: "Models",
 };
 
 /** Height of the daily trend chart, in rows. */
@@ -270,8 +269,6 @@ function tabContent(tab: DetailsTab, theme: ViewTheme, width: number, ctx: ViewC
       return trendContent(theme, width, ctx);
     case "heatmap":
       return heatmapContent(theme, width, ctx);
-    case "models":
-      return modelsContent(theme, ctx);
     case "overview":
       return overviewContent(theme, width, ctx);
   }
@@ -297,7 +294,19 @@ function overviewContent(theme: ViewTheme, width: number, ctx: ViewContext): str
 
   const footer = `${formatTokens(ctx.totals.totalTokens)} total · ${formatTokens(ctx.peak)} peak · ${ctx.activeDays} active days`;
 
-  return [` ${labelRow}`.trimEnd(), ` ${valueRow}`.trimEnd(), "", ` ${theme.muted(footer)}`];
+  // The overview also carries the models, the same rows as the Models tab:
+  // the first tab is the one people look at, so it has the whole picture. And
+  // the day the arrows select, so they always change something visible.
+  return [
+    ` ${labelRow}`.trimEnd(),
+    ` ${valueRow}`.trimEnd(),
+    "",
+    ...modelsContent(theme, ctx),
+    "",
+    ...dayDetail(theme, ctx.selected, ctx.colors, width),
+    "",
+    ` ${theme.muted(footer)}`,
+  ];
 }
 
 /**

@@ -33,6 +33,7 @@ import {
 } from "./session-ledger.ts";
 import { resolveApiKey } from "./standalone-status.ts";
 import { renderUsagePanel, usagePanelBodyWidth } from "./usage-panel.ts";
+import { matchViewKey } from "./view-keys.ts";
 import type { ViewTheme } from "./view-theme.ts";
 
 export const USAGE_COMMAND = "minimax:usage";
@@ -385,10 +386,11 @@ async function runDetails(rt: CommandRuntime, ctx: CommandCtx): Promise<void> {
  */
 function nextTab(tab: DetailsTab, data: string): DetailsTab | undefined {
   const index = DETAILS_TABS.indexOf(tab);
-  if (data === "\t") {
+  const key = matchViewKey(data);
+  if (key === "tab") {
     return DETAILS_TABS[(index + 1) % DETAILS_TABS.length] as DetailsTab;
   }
-  if (data === "\x1b[Z") {
+  if (key === "shift+tab") {
     return DETAILS_TABS[(index - 1 + DETAILS_TABS.length) % DETAILS_TABS.length] as DetailsTab;
   }
   const digit = Number(data);
@@ -412,8 +414,9 @@ function movedDay(
 ): number | undefined {
   const last = Math.max(0, windowDays - 1);
   const current = selected ?? last;
-  if (data === "\x1b[D") return Math.max(0, current - 1);
-  if (data === "\x1b[C") return Math.min(last, current + 1);
+  const key = matchViewKey(data);
+  if (key === "left") return Math.max(0, current - 1);
+  if (key === "right") return Math.min(last, current + 1);
   return undefined;
 }
 
@@ -525,24 +528,14 @@ function modelColor(index: number): string {
 
 /** `esc` and `q` close the view. */
 function isCloseKey(data: string): boolean {
-  return data === "q" || isEscape(data);
+  return data === "q" || matchViewKey(data) === "escape";
 }
 
 /** The scroll keys: the arrows, as Pi delivers them, and `j`/`k`. */
 function isScrollUp(data: string): boolean {
-  return data === "\x1b[A" || data === "k";
+  return matchViewKey(data) === "up" || data === "k";
 }
 
 function isScrollDown(data: string): boolean {
-  return data === "\x1b[B" || data === "j";
-}
-
-/**
- * The escape key, as Pi delivers it: the raw byte, or the kitty keyboard
- * protocol variant of it.
- */
-function isEscape(data: string): boolean {
-  if (data === "\x1b") return true;
-  // eslint-disable-next-line no-control-regex -- the escape sequence is the pattern
-  return /^\x1b\[27(?:;\d+)*u$/.test(data);
+  return matchViewKey(data) === "down" || data === "j";
 }

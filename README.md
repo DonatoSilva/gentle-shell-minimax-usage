@@ -44,18 +44,17 @@ so instead of drawing a 0% meter, and points at `/minimax:details`.
 ### `/minimax:details`
 
 Opens the consumption view **full screen**: the transcript stays above and the
-view takes the whole interactive area, so nothing is cut. It has four tabs:
+view takes the whole interactive area, so nothing is cut. It has three tabs:
 
 - `Overview`: the headline numbers in four columns (LLM, cache hit, daily
-  average, cost) plus the cumulative totals.
+  average, cost), what was spent per model and the cumulative totals.
 - `Trend`: the daily column chart, stacked by model (one color per model), with
   the model legend before the chart and the detail of the selected day.
 - `Heatmap`: the weekday × week heatmap over the whole history of the local
   ledger, with its color scale and the `poco ░▒▓█ mucho` weight scale at the
   right of the calendar. A click on a cell selects that day.
-- `Models`: what was spent per model, with a bar per model.
 
-`Tab` and `→` change the tab, `Shift+Tab` and `←` go back, and `1` to `4`
+`Tab` and `→` change the tab, `Shift+Tab` and `←` go back, and `1` to `3`
 jump straight to one. `r` reads the local history again, `esc` closes it.
 
 In the `Trend` tab the left and right arrows move the **selected day**: the
