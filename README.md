@@ -26,6 +26,12 @@ falls back to `MINIMAX_API_KEY` or `~/.pi/agent/auth.json`, read-only — see
 
 Two commands work in any Pi, with or without Gentle Shell.
 
+Both commands open in a **floating window** over the transcript, the way the
+Gentle Shell panel does: the quota panel is as wide as its content and the
+consumption card has a fixed width. Neither takes over the screen. The
+consumption card scrolls when it is taller than the window: `↑`/`↓` (or `j`/`k`)
+move, `r` reads the local history again and `esc` closes it.
+
 ### `/minimax:usage`
 
 Opens the quota panel, the same one Gentle Shell draws: the `5h` and weekly
@@ -37,17 +43,32 @@ so instead of drawing a 0% meter, and points at `/minimax:details`.
 
 ### `/minimax:details`
 
-Opens the consumption view: the tokens of the last 30 days, the cache hit rate,
-the daily average, the cost, the daily trend, the weekday × week heatmap and
-the cumulative totals. `r` reads the local history again, `esc` (or `q`) closes
-it.
+Opens the consumption view **full screen**: the transcript stays above and the
+view takes the whole interactive area, so nothing is cut. It has four tabs:
+
+- `Overview`: the headline numbers in four columns (LLM, cache hit, daily
+  average, cost) plus the cumulative totals.
+- `Trend`: the daily column chart, stacked by model (one color per model), with
+  the model legend before the chart and the detail of the selected day.
+- `Heatmap`: the weekday × week heatmap over the whole history of the local
+  ledger, with its color scale and the `poco ░▒▓█ mucho` weight scale at the
+  right of the calendar. A click on a cell selects that day.
+- `Models`: what was spent per model, with a bar per model.
+
+`Tab` and `→` change the tab, `Shift+Tab` and `←` go back, and `1` to `4`
+jump straight to one. `r` reads the local history again, `esc` closes it.
+
+In the `Trend` tab the left and right arrows move the **selected day**: the
+line under the chart shows that day, its total and the models that make it up.
+The `Heatmap` tab shows the same line, and a click on a cell of the calendar
+selects that day too, on the terminals where Pi hands the mouse over to the
+view.
 
 The numbers come from the **local Pi session history**, not from the MiniMax
 account: the extension reads `<agent-dir>/sessions/**/*.jsonl` and sums the
 numeric usage of the `minimax` assistant messages. The read is read-only, no
 credential and no network call are involved, and the message content is never
 read or rendered.
-
 Because it is local, the view shows what Pi did on this machine. The MiniMax
 console adds the other machines and the other tools of the account.
 

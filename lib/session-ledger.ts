@@ -22,11 +22,35 @@ export interface LedgerUsageTotals {
 export interface LedgerDay extends LedgerUsageTotals {
   day: string; // YYYY-MM-DD, local calendar day
   messages: number;
+  /**
+   * What the day was spent on, per model, the busiest one first. The trend
+   * stacks the column of the day with these.
+   */
+  models: LedgerDayModel[];
+}
+
+/** What a model spent inside a day. */
+export interface LedgerDayModel {
+  model: string;
+  totalTokens: number;
+  cost: number;
+  messages: number;
+}
+
+export interface LedgerModel extends LedgerUsageTotals {
+  model: string;
+  messages: number;
 }
 
 export interface LedgerSummary {
   provider: string;
   days: LedgerDay[]; // ascending by day, only the days that carry usage
+  /**
+   * Every day of the ledger that carries usage, ascending, the ones outside
+   * the window included. The window keeps the aggregates, the history keeps
+   * the whole past: the heatmap draws all of it.
+   */
+  history: LedgerDay[];
   totals: LedgerUsageTotals;
   cacheHitRate: number; // 0..1
   activeDays: number;
@@ -38,6 +62,8 @@ export interface LedgerSummary {
    * need it to anchor their own window on the same local day.
    */
   tzOffsetMinutes: number;
+  /** What was spent, per model, busiest first. */
+  models: LedgerModel[];
 }
 
 export interface SummarizeOptions {
@@ -68,15 +94,26 @@ export function summarizeUsage(
   const lastDay = localDayKey(now, tzOffsetMinutes);
 
   const days = new Map<string, LedgerDay>();
+  // The days outside the window: the history of the ledger, which the
+  // heatmap draws. They never change the aggregates of the window.
+  const history = new Map<string, LedgerDay>();
+  const models = new Map<string, LedgerModel>();
+  // The matrix of the days: the models of every day, with their own totals.
+  const dayModels = new Map<string, Map<string, LedgerDayModel>>();
 
   for (const entry of entries) {
-    const usage = usageOf(entry, provider);
-    if (!usage) continue;
+    const found = usageOf(entry, provider);
+    if (!found) continue;
 
     const day = dayOf(entry, tzOffsetMinutes);
-    if (!day || day < firstDay || day > lastDay) continue;
+    if (!day) continue;
 
-    const bucket = days.get(day) ?? {
+    const usage = found.usage;
+    // A day inside the window feeds the window and the models; a day outside
+    // it only feeds the history.
+    const inside = day >= firstDay && day <= lastDay;
+    const buckets = inside ? days : history;
+    const bucket = buckets.get(day) ?? {
       day,
       input: 0,
       output: 0,
@@ -85,6 +122,7 @@ export function summarizeUsage(
       totalTokens: 0,
       cost: 0,
       messages: 0,
+      models: [],
     };
     bucket.input += usage.input;
     bucket.output += usage.output;
@@ -93,18 +131,65 @@ export function summarizeUsage(
     bucket.cost += usage.cost;
     bucket.totalTokens += usage.input + usage.output + usage.cacheRead + usage.cacheWrite;
     bucket.messages += 1;
-    days.set(day, bucket);
+    buckets.set(day, bucket);
+
+    // The models of the day: the same messages, grouped by their model. The
+    // matrix of the day never changes the aggregates of the window.
+    const perModel = dayModels.get(day) ?? new Map<string, LedgerDayModel>();
+    const dayModel = perModel.get(found.model) ?? {
+      model: found.model,
+      totalTokens: 0,
+      cost: 0,
+      messages: 0,
+    };
+    dayModel.totalTokens += usage.input + usage.output + usage.cacheRead + usage.cacheWrite;
+    dayModel.cost += usage.cost;
+    dayModel.messages += 1;
+    perModel.set(found.model, dayModel);
+    dayModels.set(day, perModel);
+
+    // The models are the ones of the window: the totals of the view are the
+    // ones the window covers.
+    if (!inside) continue;
+
+    const model = models.get(found.model) ?? {
+      model: found.model,
+      input: 0,
+      output: 0,
+      cacheRead: 0,
+      cacheWrite: 0,
+      totalTokens: 0,
+      cost: 0,
+      messages: 0,
+    };
+    model.input += usage.input;
+    model.output += usage.output;
+    model.cacheRead += usage.cacheRead;
+    model.cacheWrite += usage.cacheWrite;
+    model.cost += usage.cost;
+    model.totalTokens += usage.input + usage.output + usage.cacheRead + usage.cacheWrite;
+    model.messages += 1;
+    models.set(found.model, model);
   }
 
-  const sortedDays = [...days.values()].sort((a, b) =>
-    a.day < b.day ? -1 : a.day > b.day ? 1 : 0,
-  );
+  const sortedDays = [...days.values()].sort(compareDays);
+  // The history is every day of the ledger, the ones of the window included.
+  const allDays = new Map<string, LedgerDay>();
+  for (const day of days.values()) allDays.set(day.day, day);
+  for (const day of history.values()) allDays.set(day.day, day);
+  const sortedHistory = [...allDays.values()].sort(compareDays);
+  // Every day carries the matrix of its models, the busiest one first.
+  for (const day of allDays.values()) {
+    day.models = rankDayModels(dayModels.get(day.day));
+  }
   const totals = sumTotals(sortedDays);
   const peakDay = pickPeakDay(sortedDays);
+  const ranked = [...models.values()].sort((a, b) => b.totalTokens - a.totalTokens);
 
   return {
     provider,
     days: sortedDays,
+    history: sortedHistory,
     totals,
     cacheHitRate: cacheHitRate(totals),
     activeDays: sortedDays.length,
@@ -112,6 +197,7 @@ export function summarizeUsage(
     dailyAverage: totals.totalTokens / windowDays,
     peakDay,
     tzOffsetMinutes,
+    models: ranked,
   };
 }
 
@@ -189,14 +275,23 @@ function isDirectory(path: string, entry: { isDirectory: () => boolean }): boole
 }
 
 /**
- * Extracts the numeric usage of an assistant message of `provider`.
- * Returns `undefined` for every entry that must not be counted.
+ * Extracts the numeric usage and the model of an assistant message of
+ * `provider`. Returns `undefined` for every entry that must not be counted.
  */
 function usageOf(
   entry: unknown,
   provider: string,
 ):
-  | { input: number; output: number; cacheRead: number; cacheWrite: number; cost: number }
+  | {
+      model: string;
+      usage: {
+        input: number;
+        output: number;
+        cacheRead: number;
+        cacheWrite: number;
+        cost: number;
+      };
+    }
   | undefined {
   if (!isRecord(entry)) return undefined;
   if (entry.type !== "message") return undefined;
@@ -218,12 +313,17 @@ function usageOf(
   );
   if (!hasUsage) return undefined;
 
+  const model = typeof entry.message.model === "string" ? entry.message.model : "unknown";
+
   return {
-    input: input ?? 0,
-    output: output ?? 0,
-    cacheRead: cacheRead ?? 0,
-    cacheWrite: cacheWrite ?? 0,
-    cost: cost ?? 0,
+    model,
+    usage: {
+      input: input ?? 0,
+      output: output ?? 0,
+      cacheRead: cacheRead ?? 0,
+      cacheWrite: cacheWrite ?? 0,
+      cost: cost ?? 0,
+    },
   };
 }
 
@@ -278,6 +378,22 @@ function pickPeakDay(days: readonly LedgerDay[]): LedgerDay | undefined {
     if (!peak || day.totalTokens > peak.totalTokens) peak = day;
   }
   return peak;
+}
+
+/** Orders two days by their calendar day. */
+function compareDays(a: LedgerDay, b: LedgerDay): number {
+  return a.day < b.day ? -1 : a.day > b.day ? 1 : 0;
+}
+
+/**
+ * The models of a day, the busiest one first.
+ *
+ * The order is stable: two models with the same number of tokens keep the
+ * order they were seen in.
+ */
+function rankDayModels(models: Map<string, LedgerDayModel> | undefined): LedgerDayModel[] {
+  if (!models) return [];
+  return [...models.values()].sort((a, b) => b.totalTokens - a.totalTokens);
 }
 
 function normalizeWindowDays(windowDays: number | undefined): number {

@@ -9,6 +9,7 @@ import type {
   CommandCtx,
   CommandRegistrationOptions,
   CustomComponent,
+  OverlayOptionsLike,
   ThemeLike,
   TuiLike,
   UiLike,
@@ -356,6 +357,9 @@ function commandPi() {
 function fakeCtx(mode: string) {
   const notifications: { message: string; level?: string }[] = [];
   const factories: CustomFactory[] = [];
+  // The options are recorded as they are given: a view that takes the screen
+  // opens the component without any option at all.
+  const overlays: ({ overlay?: boolean; overlayOptions?: OverlayOptionsLike } | undefined)[] = [];
   const ui: UiLike = {
     async custom<T>(
       factory: (
@@ -364,8 +368,10 @@ function fakeCtx(mode: string) {
         keybindings: unknown,
         done: (result: T) => void,
       ) => CustomComponent,
+      options?: { overlay?: boolean; overlayOptions?: OverlayOptionsLike },
     ) {
       factories.push(factory as unknown as CustomFactory);
+      overlays.push(options);
       return undefined as T;
     },
     notify(message: string, level?: string) {
@@ -373,7 +379,7 @@ function fakeCtx(mode: string) {
     },
   };
   const ctx: CommandCtx = { mode, ui };
-  return { ctx, notifications, factories };
+  return { ctx, notifications, factories, overlays };
 }
 
 function fakeTheme() {
@@ -387,12 +393,15 @@ function fakeTheme() {
   return { theme, colors };
 }
 
-function fakeTui() {
+function fakeTui(rows?: number) {
   const renders = { count: 0 };
   const tui: TuiLike = {
     requestRender() {
       renders.count += 1;
     },
+    // The terminal is only reachable in a real Pi: without it the view
+    // cannot know the height of the screen.
+    terminal: rows === undefined ? undefined : { columns: 120, rows },
   };
   return { tui, renders };
 }
@@ -415,14 +424,14 @@ function countedOkFetch(counter: { count: number }): FetchFn {
 }
 
 /** An assistant message of the MiniMax provider, with its numeric usage. */
-function ledgerEntry(now: number): unknown {
+function ledgerEntry(now: number, model: string = "MiniMax-M2"): unknown {
   return {
     type: "message",
     timestamp: new Date(now).toISOString(),
     message: {
       role: "assistant",
       provider: "minimax",
-      model: "MiniMax-M2",
+      model,
       usage: {
         input: 1000,
         output: 200,
@@ -440,6 +449,32 @@ function ledgerDir(now: number): string {
   const bucket = join(root, "sessions", "2026-10-22");
   mkdirSync(bucket, { recursive: true });
   writeFileSync(join(bucket, "session.jsonl"), `${JSON.stringify(ledgerEntry(now))}\n`, "utf8");
+  return root;
+}
+
+/** A temporary agent directory with one session file and many models in it. */
+function ledgerDirWithModels(now: number, models: string[]): string {
+  const root = mkdtempSync(join(tmpdir(), "minimax-models-"));
+  const bucket = join(root, "sessions", "2026-10-22");
+  mkdirSync(bucket, { recursive: true });
+  const lines = models.map((model) => JSON.stringify(ledgerEntry(now, model))).join("\n");
+  writeFileSync(join(bucket, "session.jsonl"), `${lines}\n`, "utf8");
+  return root;
+}
+
+/**
+ * A temporary agent directory with usage on the last two days of the window:
+ * the last day carries one model and the day before it another one.
+ */
+function ledgerDirWithDays(now: number): string {
+  const root = mkdtempSync(join(tmpdir(), "minimax-days-"));
+  const bucket = join(root, "sessions", "2026-10-22");
+  mkdirSync(bucket, { recursive: true });
+  const lines = [
+    JSON.stringify(ledgerEntry(now, "MiniMax-M3.1-Flash-Preview")),
+    JSON.stringify(ledgerEntry(now - 86_400_000, "MiniMax-M3")),
+  ].join("\n");
+  writeFileSync(join(bucket, "session.jsonl"), `${lines}\n`, "utf8");
   return root;
 }
 
@@ -485,6 +520,384 @@ test("the usage command fetches the state and paints the panel", async () => {
   assert.ok(text.includes("general 5h"), text);
   assert.ok(text.includes("general week"), text);
   assert.ok(text.includes("55%"), text);
+});
+
+test("the usage command floats the panel over the transcript", async () => {
+  const { pi, registrations } = commandPi();
+  minimaxUsageSource(
+    pi,
+    baseRuntime({
+      env: { MINIMAX_API_KEY: "env-key" },
+      fetchFn: countedOkFetch({ count: 0 }),
+      now: () => NOW,
+    }),
+  );
+  const { ctx, overlays } = fakeCtx("tui");
+
+  await registrations[0]?.handler("", ctx);
+
+  const options = overlays[0];
+  assert.equal(options?.overlay, true);
+  const width = options?.overlayOptions?.width;
+  assert.equal(typeof width, "number");
+  assert.ok((width as number) > 0 && (width as number) < WIDTH, `overlay width ${width}`);
+  assert.equal(options?.overlayOptions?.margin, 1);
+});
+
+test("the details view switches tabs and scrolls", async () => {
+  // Many models, so the models tab is taller than the screen and scrolls.
+  const models = Array.from({ length: 30 }, (_, index) => `MiniMax-M3-${index}`);
+  const root = ledgerDirWithModels(NOW, models);
+  try {
+    const { pi, registrations } = commandPi();
+    minimaxUsageSource(
+      pi,
+      baseRuntime({
+        env: { PI_CODING_AGENT_DIR: root },
+        now: () => NOW,
+      }),
+    );
+    const { ctx, factories } = fakeCtx("tui");
+
+    await registrations[1]?.handler("", ctx);
+
+    const { theme } = fakeTheme();
+    const { tui, renders } = fakeTui();
+    const component = factories[0]?.(tui, theme, {}, () => {});
+    assert.ok(component);
+
+    const overview = (component?.render(WIDTH) ?? []).join("\n");
+    assert.ok(overview.includes("LLM"), overview);
+
+    // `Tab` goes to the next tab: the chart replaces the metrics.
+    component?.handleInput?.("\t");
+    assert.equal(renders.count, 1);
+    const trend = (component?.render(WIDTH) ?? []).join("\n");
+    assert.ok(trend.includes("▌"), trend);
+    assert.equal(trend.includes("LLM"), false, trend);
+
+    // `Tab` again walks to the heatmap.
+    component?.handleInput?.("\t");
+    const heatmap = (component?.render(WIDTH) ?? []).join("\n");
+    assert.ok(heatmap.includes("Mon"), heatmap);
+
+    // `Shift+Tab` walks them back.
+    component?.handleInput?.("\x1b[Z");
+    assert.ok((component?.render(WIDTH) ?? []).join("\n").includes("▌"));
+
+    // The keys 1 to 4 jump straight to a tab: 4 is the models tab.
+    component?.handleInput?.("4");
+    const modelsTab = (component?.render(WIDTH) ?? []).join("\n");
+    assert.ok(modelsTab.includes("MiniMax-M3-0"), modelsTab);
+
+    // The models tab is taller than the screen, so it scrolls.
+    const first = component?.render(WIDTH) ?? [];
+    component?.handleInput?.("\x1b[B");
+    const scrolled = component?.render(WIDTH) ?? [];
+
+    assert.notDeepStrictEqual(first, scrolled);
+    assert.ok(scrolled.length > 0);
+
+    component?.handleInput?.("\x1b[A");
+    assert.deepStrictEqual(component?.render(WIDTH), first);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+/** The detail of the selected day: the line that starts with its date. */
+function detailOf(text: string): string {
+  return text.split("\n").find((line) => /^\s*\d{4}-\d{2}-\d{2}/.test(line)) ?? "";
+}
+
+/** The local calendar day of an instant, the way the ledger buckets it. */
+function localDayOf(epochMs: number): string {
+  const day = new Date(epochMs);
+  const month = String(day.getMonth() + 1).padStart(2, "0");
+  const date = String(day.getDate()).padStart(2, "0");
+  return `${day.getFullYear()}-${month}-${date}`;
+}
+
+/** The row of the calendar of a day: 0 is Monday. */
+function weekdayRowOf(epochMs: number): number {
+  return (new Date(epochMs).getDay() + 6) % 7;
+}
+
+/** The UTC midnight of a local day key. */
+function dayMs(day: string): number {
+  return Date.parse(`${day}T00:00:00Z`);
+}
+
+/** The Monday on or before a local day key. */
+function mondayBefore(day: string): string {
+  const ms = dayMs(day);
+  const weekday = (new Date(ms).getUTCDay() + 6) % 7;
+  return new Date(ms - weekday * 86_400_000).toISOString().slice(0, 10);
+}
+
+/** The column of the calendar of a day: the weeks count from the Monday. */
+function weekColumnOf(day: string, firstDay: string): number {
+  return Math.round((dayMs(day) - dayMs(mondayBefore(firstDay))) / (7 * 86_400_000));
+}
+
+test("the arrows move the selected day and never the tab", async () => {
+  const root = ledgerDirWithDays(NOW);
+  try {
+    const { pi, registrations } = commandPi();
+    minimaxUsageSource(
+      pi,
+      baseRuntime({
+        env: { PI_CODING_AGENT_DIR: root },
+        now: () => NOW,
+      }),
+    );
+    const { ctx, factories } = fakeCtx("tui");
+
+    await registrations[1]?.handler("", ctx);
+
+    const { theme } = fakeTheme();
+    const { tui } = fakeTui();
+    const component = factories[0]?.(tui, theme, {}, () => {});
+    assert.ok(component);
+
+    // The trend tab is the chart.
+    component?.handleInput?.("\t");
+    const trend = (component?.render(WIDTH) ?? []).join("\n");
+    assert.ok(trend.includes("▌"), trend);
+    assert.ok(trend.includes("[Trend]"), trend);
+
+    // The last day of the window is the one that is selected.
+    assert.ok(detailOf(trend).includes("MiniMax-M3.1-Flash-Preview"), detailOf(trend));
+
+    // The left arrow moves the selected day, not the tab.
+    component?.handleInput?.("\x1b[D");
+    const after = (component?.render(WIDTH) ?? []).join("\n");
+    assert.ok(after.includes("[Trend]"), after);
+    assert.ok(after.includes("▌"), after);
+    assert.equal(detailOf(after).includes("Flash"), false, detailOf(after));
+
+    // The right arrow walks the days back.
+    component?.handleInput?.("\x1b[C");
+    const back = (component?.render(WIDTH) ?? []).join("\n");
+    assert.ok(detailOf(back).includes("Flash"), detailOf(back));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("a click on a column of the chart selects that day", async () => {
+  const root = ledgerDirWithDays(NOW);
+  try {
+    const { pi, registrations } = commandPi();
+    minimaxUsageSource(
+      pi,
+      baseRuntime({
+        env: { PI_CODING_AGENT_DIR: root },
+        now: () => NOW,
+      }),
+    );
+    const { ctx, factories } = fakeCtx("tui");
+
+    await registrations[1]?.handler("", ctx);
+
+    const { theme } = fakeTheme();
+    const { tui } = fakeTui();
+    const component = factories[0]?.(tui, theme, {}, () => {});
+    assert.ok(component);
+
+    component?.handleInput?.("\t");
+    const before = (component?.render(WIDTH) ?? []).join("\n");
+
+    // A click on the first column of the chart: the first day of the window,
+    // which carries no usage.
+    component?.handleMouse?.({ type: "click", button: "left", x: 1, y: 6 });
+    const after = (component?.render(WIDTH) ?? []).join("\n");
+    assert.notEqual(after, before);
+    assert.ok(after.includes("no usage"), after);
+
+    // A click outside the columns of the chart changes nothing.
+    component?.handleMouse?.({ type: "click", button: "left", x: 0, y: 6 });
+    assert.equal((component?.render(WIDTH) ?? []).join("\n"), after);
+    component?.handleMouse?.({ type: "click", button: "left", x: 1, y: 0 });
+    assert.equal((component?.render(WIDTH) ?? []).join("\n"), after);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("a click on a cell of the heatmap selects that day", async () => {
+  const root = ledgerDirWithDays(NOW);
+  try {
+    const { pi, registrations } = commandPi();
+    minimaxUsageSource(
+      pi,
+      baseRuntime({
+        env: { PI_CODING_AGENT_DIR: root },
+        now: () => NOW,
+      }),
+    );
+    const { ctx, factories } = fakeCtx("tui");
+
+    await registrations[1]?.handler("", ctx);
+
+    const { theme } = fakeTheme();
+    const { tui } = fakeTui();
+    const component = factories[0]?.(tui, theme, {}, () => {});
+    assert.ok(component);
+
+    // The heatmap tab is the third one.
+    component?.handleInput?.("\t");
+    component?.handleInput?.("\t");
+    const before = (component?.render(WIDTH) ?? []).join("\n");
+    assert.ok(before.includes("[Heatmap]"), before);
+
+    // The click lands on the cell of the day before the last one of the
+    // ledger: the column of its week and the row of its weekday.
+    const first = localDayOf(NOW - 86_400_000);
+    const column = weekColumnOf(first, first);
+    const row = weekdayRowOf(NOW - 86_400_000);
+    component?.handleMouse?.({ type: "click", button: "left", x: 5 + column * 2, y: 4 + row });
+    const after = (component?.render(WIDTH) ?? []).join("\n");
+
+    assert.notEqual(after, before);
+    assert.ok(detailOf(after).includes(first), detailOf(after));
+
+    // The selection is shared: the trend tab details the same day.
+    component?.handleInput?.("\x1b[Z");
+    const trend = (component?.render(WIDTH) ?? []).join("\n");
+    assert.ok(detailOf(trend).includes(first), detailOf(trend));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("a click outside the calendar of the heatmap changes nothing", async () => {
+  const root = ledgerDirWithDays(NOW);
+  try {
+    const { pi, registrations } = commandPi();
+    minimaxUsageSource(
+      pi,
+      baseRuntime({
+        env: { PI_CODING_AGENT_DIR: root },
+        now: () => NOW,
+      }),
+    );
+    const { ctx, factories } = fakeCtx("tui");
+
+    await registrations[1]?.handler("", ctx);
+
+    const { theme } = fakeTheme();
+    const { tui } = fakeTui();
+    const component = factories[0]?.(tui, theme, {}, () => {});
+    assert.ok(component);
+
+    component?.handleInput?.("\t");
+    component?.handleInput?.("\t");
+    const before = (component?.render(WIDTH) ?? []).join("\n");
+
+    // The label of the weekday is not a cell.
+    component?.handleMouse?.({ type: "click", button: "left", x: 1, y: 4 + weekdayRowOf(NOW) });
+    assert.equal((component?.render(WIDTH) ?? []).join("\n"), before);
+    // A row above the calendar is not a cell either.
+    component?.handleMouse?.({ type: "click", button: "left", x: 5, y: 0 });
+    assert.equal((component?.render(WIDTH) ?? []).join("\n"), before);
+    // A click with the right button never selects a day.
+    component?.handleMouse?.({ type: "click", button: "right", x: 5, y: 4 + weekdayRowOf(NOW) });
+    assert.equal((component?.render(WIDTH) ?? []).join("\n"), before);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("the details view floats over the transcript at the full size", async () => {
+  const root = ledgerDir(NOW);
+  try {
+    const { pi, registrations } = commandPi();
+    minimaxUsageSource(
+      pi,
+      baseRuntime({
+        env: { PI_CODING_AGENT_DIR: root },
+        now: () => NOW,
+      }),
+    );
+    const { ctx, overlays, factories } = fakeCtx("tui");
+
+    await registrations[1]?.handler("", ctx);
+
+    // The view floats over the transcript and takes the whole screen.
+    const options = overlays[0];
+    assert.equal(options?.overlay, true);
+    assert.equal(options?.overlayOptions?.width, "100%");
+    assert.equal(options?.overlayOptions?.maxHeight, "100%");
+    assert.equal(options?.overlayOptions?.margin, 0);
+
+    const { theme } = fakeTheme();
+    const component = factories[0]?.(fakeTui().tui, theme, {}, () => {});
+    const text = (component?.render(WIDTH) ?? []).join("\n");
+    assert.ok(text.includes("MiniMax · Pi usage (local)"), text);
+    assert.ok(text.includes("🐙"), text);
+    // The screen is not framed: it takes the whole terminal.
+    assert.equal(text.includes("╭"), false, text);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("the details view fills the height of the terminal", async () => {
+  const root = ledgerDir(NOW);
+  try {
+    const { pi, registrations } = commandPi();
+    minimaxUsageSource(
+      pi,
+      baseRuntime({
+        env: { PI_CODING_AGENT_DIR: root },
+        now: () => NOW,
+      }),
+    );
+    const { ctx, factories } = fakeCtx("tui");
+
+    await registrations[1]?.handler("", ctx);
+
+    const { theme } = fakeTheme();
+    const { tui } = fakeTui(40);
+    const component = factories[0]?.(tui, theme, {}, () => {});
+    const lines = component?.render(WIDTH) ?? [];
+
+    // The window is as tall as the terminal.
+    assert.equal(lines.length, 40);
+    // The extra lines are blank: the content stays at the top.
+    assert.ok(lines.slice(-10).every((line) => line === ""));
+    assert.ok(lines[0]?.includes("MiniMax · Pi usage (local)"), lines[0]);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("the details view renders without padding when the terminal is not reachable", async () => {
+  const root = ledgerDir(NOW);
+  try {
+    const { pi, registrations } = commandPi();
+    minimaxUsageSource(
+      pi,
+      baseRuntime({
+        env: { PI_CODING_AGENT_DIR: root },
+        now: () => NOW,
+      }),
+    );
+    const { ctx, factories } = fakeCtx("tui");
+
+    await registrations[1]?.handler("", ctx);
+
+    const { theme } = fakeTheme();
+    const component = factories[0]?.(fakeTui().tui, theme, {}, () => {});
+    const lines = component?.render(WIDTH) ?? [];
+
+    // No trailing blank lines: the size of the screen is unknown.
+    assert.ok(lines.length > 0);
+    assert.ok(lines.at(-1)?.includes("esc close"), lines.at(-1));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test("the usage command paints with the tokens of the active Pi theme", async () => {

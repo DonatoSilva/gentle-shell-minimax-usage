@@ -15,19 +15,43 @@ export interface FrameOptions {
 // eslint-disable-next-line no-control-regex -- the escape sequence is the pattern
 const ANSI_PATTERN = /\x1b\[[0-9;]*m/g;
 
+/**
+ * The range of the emoji that occupy two terminal cells.
+ *
+ * The MiniMax mark (`🐙`) is one of them: a title padded with a one cell
+ * count would leave the frame one column short.
+ */
+const WIDE_FIRST = 0x1f300;
+const WIDE_LAST = 0x1faff;
+
+/** Whether a code point occupies two terminal cells. */
+function isWide(codePoint: number): boolean {
+  return codePoint >= WIDE_FIRST && codePoint <= WIDE_LAST;
+}
+
 /** Visible width of a string, ignoring ANSI escape sequences. */
 export function visibleWidth(text: string): number {
-  return text.replace(ANSI_PATTERN, "").length;
+  const plain = text.replace(ANSI_PATTERN, "");
+  let width = 0;
+  for (const character of plain) {
+    width += isWide(character.codePointAt(0) ?? 0) ? 2 : 1;
+  }
+  return width;
 }
 
 /**
  * Truncates a painted string to `width` visible characters, keeping the ANSI
  * sequences intact and appending an ellipsis when something was cut.
+ *
+ * A wide glyph is never cut in half: when it does not fit in the last cell
+ * it is dropped whole and the ellipsis takes its place.
  */
 export function truncateVisible(text: string, width: number): string {
   if (width <= 0) return "";
   if (visibleWidth(text) <= width) return text;
 
+  // One cell is reserved for the ellipsis.
+  const limit = Math.max(0, width - 1);
   let visible = 0;
   let cut = 0;
   let index = 0;
@@ -37,9 +61,12 @@ export function truncateVisible(text: string, width: number): string {
       index += escape.length;
       continue;
     }
-    if (visible === width - 1) break;
-    visible += 1;
-    index += 1;
+    const codePoint = text.codePointAt(index) ?? 0;
+    const cells = isWide(codePoint) ? 2 : 1;
+    // The glyph does not fit: it is dropped whole, never cut in half.
+    if (visible + cells > limit) break;
+    visible += cells;
+    index += codePoint > 0xffff ? 2 : 1;
     cut = index;
   }
 
@@ -59,11 +86,6 @@ export function truncateVisible(text: string, width: number): string {
  */
 export function fitVisible(text: string, width: number): string {
   if (width <= 0) return "";
-  if (visibleWidth(text) <= width) return text;
-  if (!text.includes("\x1b")) {
-    const characters = Array.from(text);
-    return `${characters.slice(0, Math.max(0, width - 1)).join("")}…`;
-  }
   return truncateVisible(text, width);
 }
 
