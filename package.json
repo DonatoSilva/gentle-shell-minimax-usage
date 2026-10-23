@@ -5,7 +5,10 @@
   "type": "module",
   "license": "MIT",
   "author": "Donato Silva",
-  "repository": "DonatoSilva/gentle-shell-minimax-usage",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DonatoSilva/gentle-shell-minimax-usage.git"
+  },
   "keywords": [
     "pi-package",
     "gentle-shell",
