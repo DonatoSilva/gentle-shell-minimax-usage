@@ -167,32 +167,17 @@ function render(summary: LedgerSummary = SUMMARY, width: number = WIDTH): string
 
 function renderTab(
   tab: "overview" | "trend" | "heatmap",
-  options: { width?: number; trendRows?: number; selectedDay?: number } = {},
+  options: { width?: number; trendRows?: number } = {},
 ): string[] {
   return renderDetailsView(SUMMARY, plainTheme(), options.width ?? WIDTH, {
     tab,
     trendRows: options.trendRows,
-    selectedDay: options.selectedDay,
   });
 }
 
-/**
- * The detail of the selected day: the line that starts with its date and the
- * lines it wraps to, in whichever tab it is.
- */
-function detailLines(lines: string[]): string {
-  const hints = lines.findIndex((line) => line.includes("esc close"));
-  const end = hints === -1 ? lines.length : hints;
-  const start = lines.findIndex((line) => /^\s*\d{4}-\d{2}-\d{2}/.test(line));
-  if (start === -1) return "";
-
-  const block: string[] = [];
-  for (let index = start; index < end; index += 1) {
-    const line = lines[index] ?? "";
-    if (line.trim() === "") break;
-    block.push(line);
-  }
-  return block.join(" ").trim();
+/** The lines of a view that carry the detail of a day: there are none. */
+function dayDetailLines(lines: string[]): string[] {
+  return lines.filter((line) => /^\s*\d{4}-\d{2}-\d{2}/.test(line));
 }
 
 function lineWith(lines: string[], needle: string): string {
@@ -466,49 +451,27 @@ test("wraps the legend when its entries do not fit the width", () => {
   assert.ok(lines.indexOf(legend[1] ?? "") < chart);
 });
 
-test("draws the detail line of the selected day", () => {
-  const detail = detailLines(renderTab("trend", { selectedDay: 26 }));
+test("the trend tab draws no detail line of a day", () => {
+  const lines = renderTab("trend");
 
-  assert.ok(detail.includes("2026-10-18"), detail);
-  assert.ok(detail.includes("388.00M"), detail);
-  assert.ok(detail.includes("MiniMax-M3.1-Flash-Preview"), detail);
-  assert.ok(detail.includes("318.16M"), detail);
-  assert.ok(detail.includes("82%"), detail);
-  assert.ok(detail.includes("MiniMax-M3 "), detail);
-  assert.ok(detail.includes("69.84M"), detail);
-  assert.ok(detail.includes("18%"), detail);
-});
-
-test("details the last day of the window when no day is selected", () => {
-  const detail = detailLines(renderTab("trend"));
-
-  assert.ok(detail.includes("2026-10-21"), detail);
-  assert.ok(detail.includes("299.57M"), detail);
-});
-
-test("says so when the selected day has no usage", () => {
-  const detail = detailLines(renderTab("trend", { selectedDay: 0 }));
-
-  assert.ok(detail.includes("2026-09-22"), detail);
-  assert.ok(detail.includes("no usage"), detail);
-});
-
-test("the selection is an input of the renderer, never internal state", () => {
-  const first = renderDetailsView(SUMMARY, plainTheme(), WIDTH, {
-    tab: "trend",
-    selectedDay: 26,
-  });
-  const second = renderDetailsView(SUMMARY, plainTheme(), WIDTH, {
-    tab: "trend",
-    selectedDay: 28,
-  });
-
-  assert.notDeepStrictEqual(first, second);
-  // The same options paint the same view: the renderer keeps nothing.
-  assert.deepStrictEqual(
-    first,
-    renderDetailsView(SUMMARY, plainTheme(), WIDTH, { tab: "trend", selectedDay: 26 }),
+  assert.deepStrictEqual(dayDetailLines(lines), [], lines.join("\n"));
+  assert.equal(
+    lines.some((line) => line.includes("no usage")),
+    false,
+    lines.join("\n"),
   );
+});
+
+test("the overview draws no detail line of a day", () => {
+  const lines = renderTab("overview");
+
+  assert.deepStrictEqual(dayDetailLines(lines), [], lines.join("\n"));
+});
+
+test("the heatmap tab draws no detail line of a day", () => {
+  const lines = renderTab("heatmap");
+
+  assert.deepStrictEqual(dayDetailLines(lines), [], lines.join("\n"));
 });
 
 test("draws the heatmap alone, with its weight scale under it", () => {
@@ -558,57 +521,15 @@ test("mutes the two words of the weight scale", () => {
   assert.ok(muted.includes("mucho"), muted.join(","));
 });
 
-test("the heatmap shows the detail of the selected day", () => {
-  const detail = detailLines(renderTab("heatmap", { selectedDay: 26 }));
-
-  assert.ok(detail.includes("2026-10-18"), detail);
-  assert.ok(detail.includes("388.00M"), detail);
-  assert.ok(detail.includes("MiniMax-M3.1-Flash-Preview"), detail);
-  assert.ok(detail.includes("82%"), detail);
-  assert.ok(detail.includes("MiniMax-M3 "), detail);
-  assert.ok(detail.includes("18%"), detail);
-});
-
-test("the heatmap and the trend detail the same day", () => {
-  const trend = detailLines(renderTab("trend", { selectedDay: 26 }));
-  const heatmap = detailLines(renderTab("heatmap", { selectedDay: 26 }));
-
-  assert.equal(heatmap, trend);
-  assert.ok(heatmap.includes("2026-10-18"), heatmap);
-});
-
-test("the heatmap marks the selected day", () => {
+test("the heatmap marks no cell", () => {
   const { theme } = markedTheme();
 
-  const lines = renderDetailsView(SUMMARY, theme, WIDTH, {
-    tab: "heatmap",
-    selectedDay: 26,
-  });
+  const lines = renderDetailsView(SUMMARY, theme, WIDTH, { tab: "heatmap" });
   const rows = lines.filter((line) => /Mon|Tue|Wed|Thu|Fri|Sat|Sun/.test(line));
   const marked = rows.filter((line) => line.includes("<accent>"));
 
-  // Only the cell of the selected day is painted with the accent role.
-  assert.equal(marked.length, 1, marked.join("\n"));
-});
-
-test("the selection is drawn only when the day is inside the calendar", () => {
-  const { theme } = markedTheme();
-
-  // The narrow view draws only the last week of the calendar: the first day
-  // of the window is not in it.
-  const narrow = renderDetailsView(SUMMARY, theme, 24, {
-    tab: "heatmap",
-    selectedDay: 0,
-  });
-  const narrowRows = narrow.filter((line) => /Mon|Tue|Wed|Thu|Fri|Sat|Sun/.test(line));
-  assert.equal(narrowRows.filter((line) => line.includes("<accent>")).length, 0);
-
-  const wide = renderDetailsView(SUMMARY, theme, WIDTH, {
-    tab: "heatmap",
-    selectedDay: 26,
-  });
-  const wideRows = wide.filter((line) => /Mon|Tue|Wed|Thu|Fri|Sat|Sun/.test(line));
-  assert.equal(wideRows.filter((line) => line.includes("<accent>")).length, 1);
+  // The day selection is gone: no cell of the calendar stands out.
+  assert.equal(marked.length, 0, marked.join("\n"));
 });
 
 test("draws the heatmap over the whole history of the ledger", () => {
@@ -661,7 +582,9 @@ test("the overview also shows what was spent per model", () => {
 test("draws the hints line at the bottom", () => {
   const hints = renderTab("overview").at(-1) ?? "";
 
-  assert.ok(hints.includes("↑↓ scroll · ←→ day · tab cambia · r refresh · esc close"), hints);
+  assert.ok(hints.includes("↑↓ scroll · tab change · r refresh · esc close"), hints);
+  // The day selection is gone: the arrows are not advertised anymore.
+  assert.equal(hints.includes("←→"), false, hints);
 });
 
 test("paints the title of the screen and the label of the window", () => {

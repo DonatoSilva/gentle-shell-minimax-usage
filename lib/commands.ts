@@ -11,18 +11,7 @@
 // plan endpoint, the details command reads the local session ledger and
 // never sends a single byte of it anywhere.
 
-import {
-  DEFAULT_TREND_ROWS,
-  DETAILS_CONTENT_ROW,
-  DETAILS_TABS,
-  HEATMAP_ROWS,
-  formatTokens,
-  heatmapSelectionAt,
-  renderDetailsView,
-  trendChartTop,
-  trendDayAt,
-  type DetailsTab,
-} from "./details-view.ts";
+import { DETAILS_TABS, formatTokens, renderDetailsView, type DetailsTab } from "./details-view.ts";
 import { fetchRemainsState, type FetchFn } from "./fetch-remains.ts";
 import type { RemainsState } from "./parse-remains.ts";
 import {
@@ -85,12 +74,6 @@ export interface CustomComponent {
   render(width: number): string[];
   invalidate(): void;
   handleInput?(data: string): void;
-  /**
-   * A mouse event of the component. Pi only routes the mouse to a component
-   * in its alt-screen (fullscreen) mode: in the regular mode the terminal
-   * keeps the mouse, so the event may never arrive.
-   */
-  handleMouse?(event: { type: string; button: string; x: number; y: number }): unknown;
 }
 
 /** The terminal handle of a custom component: it asks for a repaint. */
@@ -250,8 +233,8 @@ async function runUsage(rt: CommandRuntime, ctx: CommandCtx): Promise<void> {
  * `esc` or `q` closes the view. `MINIMAX_DETAILS=off` disables the ledger
  * entirely: nothing is read and nothing is painted.
  *
- * The arrows move the selected day of the trend, the tabs move with `Tab`,
- * `Shift+Tab` and the keys `1` to `4`.
+ * The tabs move with `Tab`, `Shift+Tab` and the keys `1` to `3`. The view
+ * does not pick a day: there is no selected day to move to.
  */
 async function runDetails(rt: CommandRuntime, ctx: CommandCtx): Promise<void> {
   if (isLedgerDisabled(rt.env)) {
@@ -273,22 +256,16 @@ async function runDetails(rt: CommandRuntime, ctx: CommandCtx): Promise<void> {
     (tui, theme, _keybindings, done) => {
       let current = summary;
       let tab: DetailsTab = "overview";
-      // The selected day of the trend: the index inside the window. It is
-      // undefined while the renderer uses the last day of the window.
-      let selectedDay: number | undefined;
       let offset = 0;
-      let lastWidth = 80;
       const view = viewThemeOf(theme);
 
       return {
         render(width: number): string[] {
-          lastWidth = width;
           // The view is taller than the screen when it has to be: the slice is
           // what is painted, and the offset scrolls through the rest of it.
           const lines = renderDetailsView(current, view, width, {
             now: rt.now(),
             tab,
-            selectedDay,
           });
           const rows = tui.terminal?.rows;
           const visible = rows ?? VISIBLE_LINES;
@@ -310,14 +287,7 @@ async function runDetails(rt: CommandRuntime, ctx: CommandCtx): Promise<void> {
             tui.requestRender();
             return;
           }
-          // The arrows move the selected day: the tabs keep `Tab`,
-          // `Shift+Tab` and the keys `1` to `4`.
-          const day = movedDay(selectedDay, data, current.windowDays);
-          if (day !== undefined) {
-            selectedDay = day;
-            tui.requestRender();
-            return;
-          }
+          // The tabs move with `Tab`, `Shift+Tab` and the keys `1` to `3`.
           const next = nextTab(tab, data);
           if (next !== undefined) {
             tab = next;
@@ -337,33 +307,6 @@ async function runDetails(rt: CommandRuntime, ctx: CommandCtx): Promise<void> {
           }
           if (isCloseKey(data)) done(undefined);
         },
-        handleMouse(event: { type: string; button: string; x: number; y: number }): unknown {
-          if (event.type !== "click" || event.button !== "left") return undefined;
-          // The row of the click inside the content of the tab.
-          const row = offset + event.y - DETAILS_CONTENT_ROW;
-          if (tab === "trend") {
-            // The chart lives under the title of the section and the legend
-            // of the models, and it is as tall as the trend rows.
-            const chartRow = row - trendChartTop(current, lastWidth, { now: rt.now() });
-            if (chartRow < 0 || chartRow >= DEFAULT_TREND_ROWS) return undefined;
-            const day = trendDayAt(event.x, lastWidth, current.windowDays);
-            if (day === undefined) return undefined;
-            selectedDay = day;
-            tui.requestRender();
-            return { handled: true };
-          }
-          if (tab === "heatmap") {
-            // The calendar is the grid of weekdays: the click lands on the
-            // day of its cell.
-            if (row < 0 || row >= HEATMAP_ROWS) return undefined;
-            const day = heatmapSelectionAt(event.x, row, lastWidth, current, rt.now());
-            if (day === undefined) return undefined;
-            selectedDay = day;
-            tui.requestRender();
-            return { handled: true };
-          }
-          return undefined;
-        },
       };
     },
     {
@@ -379,10 +322,10 @@ async function runDetails(rt: CommandRuntime, ctx: CommandCtx): Promise<void> {
 
 /**
  * The tab a key asks for: `Tab` goes to the next one, `Shift+Tab` to the
- * previous one, and the keys `1` to `4` jump straight to a tab. Both ends
+ * previous one, and the keys `1` to `3` jump straight to a tab. Both ends
  * wrap around.
  *
- * The arrows never change the tab: they move the selected day of the trend.
+ * The arrows never change the tab: the view does not pick a day anymore.
  */
 function nextTab(tab: DetailsTab, data: string): DetailsTab | undefined {
   const index = DETAILS_TABS.indexOf(tab);
@@ -397,26 +340,6 @@ function nextTab(tab: DetailsTab, data: string): DetailsTab | undefined {
   if (Number.isInteger(digit) && digit >= 1 && digit <= DETAILS_TABS.length) {
     return DETAILS_TABS[digit - 1] as DetailsTab;
   }
-  return undefined;
-}
-
-/**
- * The day the arrows ask for: the left one goes to the day before and the
- * right one to the day after, clamped to the window.
- *
- * The selection starts at the last day of the window, the one the renderer
- * uses when no day is given.
- */
-function movedDay(
-  selected: number | undefined,
-  data: string,
-  windowDays: number,
-): number | undefined {
-  const last = Math.max(0, windowDays - 1);
-  const current = selected ?? last;
-  const key = matchViewKey(data);
-  if (key === "left") return Math.max(0, current - 1);
-  if (key === "right") return Math.min(last, current + 1);
   return undefined;
 }
 

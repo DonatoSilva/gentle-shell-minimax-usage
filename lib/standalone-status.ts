@@ -7,7 +7,10 @@ export const STATUS_KEY = "minimax-usage";
 export const STATUS_NO_KEY = "MM: sin API key";
 export const STATUS_NO_DATA = "MM: sin datos";
 
-export function formatUsageStatus(usage: ProviderUsage | undefined): string | undefined {
+export function formatUsageStatus(
+  usage: ProviderUsage | undefined,
+  notice?: string,
+): string | undefined {
   if (!usage) return undefined;
   const parts: string[] = [];
   for (const limit of usage.limits) {
@@ -15,7 +18,10 @@ export function formatUsageStatus(usage: ProviderUsage | undefined): string | un
     if (window) parts.push(`${window.label} ${Math.round(window.usedPercent)}%`);
   }
   if (parts.length === 0) return undefined;
-  return `MM ${parts.join(" · ")}`;
+  const status = `MM ${parts.join(" · ")}`;
+  // The notice announces a newer published version: the word "new" and it.
+  const announcement = notice?.trim();
+  return announcement ? `${status} · new ${announcement}` : status;
 }
 
 export interface KeyLookupInput {

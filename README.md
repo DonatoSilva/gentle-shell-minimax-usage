@@ -49,19 +49,13 @@ view takes the whole interactive area, so nothing is cut. It has three tabs:
 - `Overview`: the headline numbers in four columns (LLM, cache hit, daily
   average, cost), what was spent per model and the cumulative totals.
 - `Trend`: the daily column chart, stacked by model (one color per model), with
-  the model legend before the chart and the detail of the selected day.
+  the model legend before the chart.
 - `Heatmap`: the weekday × week heatmap over the whole history of the local
   ledger, with its color scale and the `poco ░▒▓█ mucho` weight scale at the
-  right of the calendar. A click on a cell selects that day.
+  right of the calendar.
 
-`Tab` and `→` change the tab, `Shift+Tab` and `←` go back, and `1` to `3`
-jump straight to one. `r` reads the local history again, `esc` closes it.
-
-In the `Trend` tab the left and right arrows move the **selected day**: the
-line under the chart shows that day, its total and the models that make it up.
-The `Heatmap` tab shows the same line, and a click on a cell of the calendar
-selects that day too, on the terminals where Pi hands the mouse over to the
-view.
+`Tab` changes the tab, `Shift+Tab` goes back, and `1` to `3` jump straight to
+one. `r` reads the local history again, `esc` closes it.
 
 The numbers come from the **local Pi session history**, not from the MiniMax
 account: the extension reads `<agent-dir>/sessions/**/*.jsonl` and sums the
@@ -96,6 +90,16 @@ MM 5h 55% · week 6%
 Missing key shows `MM: sin API key`; a fetch without data shows `MM: sin datos`.
 The status refreshes on session start and whenever the agent settles, with its
 own 10-second timeout.
+
+When the npm registry has a newer published version, the segment carries the
+notice:
+
+```
+MM 5h 55% · week 6% · new 0.6.0
+```
+
+The check asks the registry once an hour, it never blocks the status and a
+registry that is down leaves the status as it is.
 
 `MINIMAX_USAGE_MODE=off` turns the extension off entirely: no source, no status
 and no commands.
@@ -187,3 +191,6 @@ way to see what the commands will show.
   account-wide numbers of the MiniMax console.
 - The cache hit rate is ours (`cacheRead / (input + cacheRead + cacheWrite)`),
   not MiniMax's own accounting.
+- The version notice lives in the code that is installed: it reaches the
+  installations that are not pinned to a version. A pinned package keeps the
+  code it was installed with, and it never learns about the new one.
