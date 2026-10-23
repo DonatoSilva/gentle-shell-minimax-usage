@@ -5,6 +5,12 @@
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 
+import {
+  createMinimaxCommands,
+  DETAILS_COMMAND,
+  USAGE_COMMAND,
+  type CommandRegistrationOptions,
+} from "../lib/commands.ts";
 import { fetchRemains, type FetchFn } from "../lib/fetch-remains.ts";
 import {
   detectGentleShell,
@@ -41,6 +47,7 @@ interface PiExtensionApi {
     event: "session_start" | "agent_settled",
     handler: (event: unknown, ctx?: ExtensionCtx) => void,
   ): void;
+  registerCommand?(name: string, options: CommandRegistrationOptions): void;
 }
 
 export interface UsageRuntime {
@@ -69,6 +76,13 @@ export default function minimaxUsageSource(
   const mode: UsageMode = parseUsageMode(rt.env.MINIMAX_USAGE_MODE);
   const shellPresent = detectGentleShell({ env: rt.env, home: rt.home, exists: rt.exists });
   const surface = decideSurface(mode, shellPresent);
+
+  const commands = createMinimaxCommands(rt);
+  // `off` turns the extension off entirely: no source, no status, no commands.
+  if (surface.registerSource && typeof pi.registerCommand === "function") {
+    pi.registerCommand(USAGE_COMMAND, commands.usage);
+    pi.registerCommand(DETAILS_COMMAND, commands.details);
+  }
 
   const register = (): void => {
     pi.events.emit(CHANNEL, {
