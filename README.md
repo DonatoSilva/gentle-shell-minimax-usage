@@ -9,14 +9,26 @@ meters, thresholds and countdowns.
 
 ## Install
 
+With Gentle Shell:
+
+```sh
+gentle-shell install npm:gentle-shell-minimax-usage
+```
+
+With plain Pi:
+
 ```sh
 pi install npm:gentle-shell-minimax-usage
 ```
 
-That is all. Install **without a version**: Pi follows the `latest` tag and
-tells you when there is a new release (`pi list` shows your packages,
-`pi update --extensions` installs the pending ones). To pin a version on
-purpose, add `@<version>`; Pi never announces updates for a pinned package.
+Each command installs into its own home: `gentle-shell` into the Gentle Shell
+home, `pi` into your Pi home. Use the one you launch Pi with.
+
+Install **without a version**: the package follows the `latest` tag and tells
+you when there is a new release. `gentle-shell list` / `pi list` show your
+packages and `gentle-shell update` / `pi update --extensions` install the
+pending ones. To pin a version on purpose, add `@<version>`; a pinned package
+never announces updates.
 
 No Gentle Shell? It still works: see [Without Gentle Shell](#without-gentle-shell).
 Coming from 0.4.0, or installing by hand: see [More install options](#more-install-options).
@@ -117,11 +129,11 @@ Shell detection is a heuristic: it probes for the installed `gentle-pi` package
 ### Coming from 0.4.0
 
 The pinned command of the old README leaves you on 0.4.0 with no update notice.
-Unpin it:
+Unpin it (use `pi` instead of `gentle-shell` if that is how you installed):
 
 ```sh
-pi remove npm:gentle-shell-minimax-usage
-pi install npm:gentle-shell-minimax-usage
+gentle-shell remove npm:gentle-shell-minimax-usage
+gentle-shell install npm:gentle-shell-minimax-usage
 ```
 
 ### Manual install (no registry)
@@ -135,7 +147,8 @@ tar -xzf gentle-shell-minimax-usage-<version>.tgz -C ~/.pi/agent/extensions/mini
 ```
 
 Pi loads one-level subdirectories of `~/.pi/agent/extensions/` that have a
-`package.json` with a `pi.extensions` manifest. Restart Pi after unpacking.
+`package.json` with a `pi.extensions` manifest (for the Gentle Shell home, use
+`~/.gentle-shell/agent/extensions/`). Restart Pi after unpacking.
 Do not keep this copy once the npm package is installed: two extensions would
 register the same provider.
 
