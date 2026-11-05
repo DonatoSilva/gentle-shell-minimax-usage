@@ -9,15 +9,26 @@ Gentle Shell dibuja los medidores, los umbrales y las cuentas regresivas.
 
 ## Instalación
 
+Con Gentle Shell:
+
+```sh
+gentle-shell install npm:gentle-shell-minimax-usage
+```
+
+Con Pi a secas:
+
 ```sh
 pi install npm:gentle-shell-minimax-usage
 ```
 
-Eso es todo. Instala **sin versión**: Pi sigue el tag `latest` y te avisa cuando
-hay una versión nueva (`pi list` muestra tus paquetes y
-`pi update --extensions` instala los pendientes). Para fijar una versión a
-propósito, agrega `@<versión>`; Pi nunca avisa de actualizaciones de un paquete
-fijado.
+Cada comando instala en su propio home: `gentle-shell` en el home de Gentle
+Shell, `pi` en tu home de Pi. Usa el que uses para abrir Pi.
+
+Instala **sin versión**: el paquete sigue el tag `latest` y te avisa cuando hay
+una versión nueva. `gentle-shell list` / `pi list` muestran tus paquetes y
+`gentle-shell update` / `pi update --extensions` instalan los pendientes. Para
+fijar una versión a propósito, agrega `@<versión>`; un paquete fijado nunca
+avisa de actualizaciones.
 
 ¿Sin Gentle Shell? También funciona: mira [Sin Gentle Shell](#sin-gentle-shell).
 ¿Vienes de la 0.4.0 o quieres instalar a mano? Mira
@@ -122,11 +133,11 @@ instalado (bajo `$PI_CODING_AGENT_DIR` o `~/.pi/agent`, `$PI_PACKAGE_DIR`, o
 ### Vienes de la 0.4.0
 
 El comando con versión fija del README antiguo te deja en la 0.4.0 sin aviso de
-actualizaciones. Quítale la versión:
+actualizaciones. Quítale la versión (usa `pi` en vez de `gentle-shell` si así lo instalaste):
 
 ```sh
-pi remove npm:gentle-shell-minimax-usage
-pi install npm:gentle-shell-minimax-usage
+gentle-shell remove npm:gentle-shell-minimax-usage
+gentle-shell install npm:gentle-shell-minimax-usage
 ```
 
 ### Instalación manual (sin registro)
@@ -140,8 +151,8 @@ tar -xzf gentle-shell-minimax-usage-<versión>.tgz -C ~/.pi/agent/extensions/min
 ```
 
 Pi carga los subdirectorios de un nivel de `~/.pi/agent/extensions/` que tengan
-un `package.json` con un manifiesto `pi.extensions`. Reinicia Pi tras
-descomprimir. No conserves esta copia una vez instalado el paquete de npm: dos
+un `package.json` con un manifiesto `pi.extensions` (para el home de Gentle
+Shell, usa `~/.gentle-shell/agent/extensions/`). Reinicia Pi tras descomprimir. No conserves esta copia una vez instalado el paquete de npm: dos
 extensiones registrarían el mismo proveedor.
 
 ## Desarrollo
